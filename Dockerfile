@@ -20,6 +20,7 @@ COPY backend/ .
 
 # Create a non-root user for Hugging Face compatibility
 RUN useradd -m -u 1000 user
+RUN chown -R user:user /app
 USER user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH

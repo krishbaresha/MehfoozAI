@@ -43,7 +43,7 @@ app.add_middleware(
 )
 
 # Configure logging to file
-logger.add("backend_debug.log", rotation="10 MB", level="INFO")
+# logger.add("backend_debug.log", rotation="10 MB", level="INFO")
 
 
 # ─── Health ─────────────────────────────────────────────────────────
