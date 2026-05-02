@@ -44,22 +44,21 @@ async def send_whatsapp_reply(to_number: str, message: str):
             "type": "text",
             "text": {"body": message}
         }
+        import requests
         for attempt in range(2):  # Try twice
             try:
-                # Use a fresh client for each attempt with a longer timeout
-                async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
-                    response = await client.post(url, headers=headers, json=data)
-                    if response.status_code in (200, 201, 202):
-                        logger.info(f"✅ WhatsApp reply sent via Meta to {clean_number}")
-                        return
-                    elif response.status_code == 401:
-                        logger.error(f"❌ Meta Error 401 Unauthorized — The META_ACCESS_TOKEN in .env has likely expired or is invalid.")
-                        return
-                    else:
-                        logger.warning(f"⚠️ Meta API failed ({response.status_code}): {response.text}")
-                        return
-            except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout) as e:
-                logger.warning(f"⏳ Meta API Timeout (Attempt {attempt+1}): {e}. Retrying...")
+                response = requests.post(url, headers=headers, json=data, timeout=30)
+                if response.status_code in (200, 201, 202):
+                    logger.info(f"✅ WhatsApp reply sent via Meta to {clean_number}")
+                    return
+                elif response.status_code == 401:
+                    logger.error(f"❌ Meta Error 401 Unauthorized — The META_ACCESS_TOKEN in .env has likely expired or is invalid.")
+                    return
+                else:
+                    logger.warning(f"⚠️ Meta API failed ({response.status_code}): {response.text}")
+                    return
+            except requests.exceptions.Timeout:
+                logger.warning(f"⏳ Meta API Timeout (Attempt {attempt+1}). Retrying...")
                 continue
             except Exception as e:
                 logger.error(f"❌ Meta API Connection Error: {type(e).__name__} - {str(e)}")

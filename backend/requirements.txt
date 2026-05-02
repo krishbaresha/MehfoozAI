@@ -12,3 +12,4 @@ loguru==0.7.3
 httpx==0.28.1
 resend==2.10.0
 pytz
+requests==2.32.3
