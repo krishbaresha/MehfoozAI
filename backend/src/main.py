@@ -189,27 +189,23 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             "🛡️ MehfoozAI: Hum aapki report process kar rahe hain. Kuch der baad dobara try karein."
         )
 
-@app.get("/webhook/whatsapp")
+@app.get("/webhook")
 async def verify_whatsapp_webhook(request: Request):
     """
     Meta Webhook Verification Endpoint.
-    Meta sends a GET request with hub.mode, hub.challenge, and hub.verify_token.
     """
     mode = request.query_params.get("hub.mode")
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
 
-    if mode and token:
-        if mode == "subscribe" and token == settings.META_WEBHOOK_VERIFY_TOKEN:
-            logger.info("✅ Webhook verified successfully!")
-            return Response(content=challenge, status_code=200)
-        else:
-            logger.warning("❌ Webhook verification failed. Invalid token.")
-            return Response(content="Forbidden", status_code=403)
+    if mode == "subscribe" and token == settings.META_WEBHOOK_VERIFY_TOKEN:
+        logger.info("✅ Webhook verified successfully!")
+        return Response(content=challenge, media_type="text/plain")
     
-    return Response(content="Bad Request", status_code=400)
+    logger.warning(f"❌ Webhook verification failed. Token mismatch: {token}")
+    return Response(content="Forbidden", status_code=403)
 
-@app.post("/webhook/whatsapp")
+@app.post("/webhook")
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Meta WhatsApp webhook.
