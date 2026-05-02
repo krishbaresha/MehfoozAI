@@ -103,7 +103,7 @@ export default function LandingPage() {
         </div>
         <div style={{ display: "flex", gap: isMobile ? 15 : 40, alignItems: "center" }}>
           <Link href="/dashboard" className="nav-link" style={{ fontSize: isMobile ? 12 : 14 }}>Portal</Link>
-          <Link href="https://wa.me/15556461678" target="_blank" className="primary-btn-sm" style={{ padding: isMobile ? "8px 12px" : "10px 20px", fontSize: isMobile ? 11 : 13 }}>
+          <Link href="https://wa.me/923350095429" target="_blank" className="primary-btn-sm" style={{ padding: isMobile ? "8px 12px" : "10px 20px", fontSize: isMobile ? 11 : 13 }}>
             {isMobile ? "Report" : "Report Anonymously"}
           </Link>
         </div>
@@ -133,7 +133,7 @@ export default function LandingPage() {
             The first AI-driven sanctuary for anonymous harassment reporting. No apps, no exposure—just a simple WhatsApp message to secure your justice.
           </p>
           <div style={{ display: "flex", gap: 16, flexDirection: isMobile ? "column" : "row", alignItems: "stretch" }}>
-            <Link href="https://wa.me/15556461678" target="_blank" className="primary-btn" style={{ justifyContent: "center" }}>
+            <Link href="https://wa.me/923350095429" target="_blank" className="primary-btn" style={{ justifyContent: "center" }}>
               <Ico name="wa" size={24} color="#fff" />
               Report via WhatsApp
             </Link>
@@ -285,7 +285,7 @@ export default function LandingPage() {
         <div style={{ position: "relative", zIndex: 1 }}>
           <h2 style={{ fontSize: isMobile ? 36 : 56, fontWeight: 800, marginBottom: 28, color: "#fff", letterSpacing: "-0.03em" }}>Ready to reclaim your safety?</h2>
           <p style={{ fontSize: isMobile ? 16 : 20, color: C.textDim, marginBottom: 56, maxWidth: 600, margin: "0 auto 56px" }}>Your voice is your power. Every report is a step toward a safer Pakistan for everyone.</p>
-          <Link href="https://wa.me/15556461678" target="_blank" className="primary-btn-lg" style={{ padding: isMobile ? "16px 32px" : "24px 60px", fontSize: isMobile ? 18 : 22 }}>
+          <Link href="https://wa.me/923350095429" target="_blank" className="primary-btn-lg" style={{ padding: isMobile ? "16px 32px" : "24px 60px", fontSize: isMobile ? 18 : 22 }}>
             <Ico name="wa" size={isMobile ? 24 : 28} color="#fff" />
             Chat with MehfoozAI
           </Link>

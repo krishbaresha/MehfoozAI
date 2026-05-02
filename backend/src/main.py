@@ -5,7 +5,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from src.config.settings import settings
 from src.agents.graph import run_pipeline
 from src.agents.followup import handle_followup
-from src.db.supabase import (
+from src.db.supabase_client import (
     generate_case_id, save_incident, update_heatmap, get_case_status,
     check_db_ready, get_dashboard_stats, get_recent_cases, get_heatmap_points,
     get_authority_cases, get_supabase_headers
@@ -46,10 +46,15 @@ app.add_middleware(
 )
 
 # Configure logging to file
-# logger.add("backend_debug.log", rotation="10 MB", level="INFO")
+logger.add("debug_v2.log", rotation="10 MB", level="INFO")
 
 
 # ─── Health ─────────────────────────────────────────────────────────
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("🚀 MehfoozAI Backend Started - Logging Active")
+    logger.info(f"Environment: {os.getenv('APP_ENV', 'development')}")
 
 @app.get("/health")
 async def health():
@@ -201,7 +206,7 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             "⚠️ Maazrat, aapki report process karne mein technical masla hua hai. Humari team ise check kar rahi hai."
         )
 
-@app.get("/webhook")
+@app.get("/webhook/whatsapp")
 async def verify_whatsapp_webhook(request: Request):
     """
     Meta Webhook Verification Endpoint.
@@ -210,14 +215,19 @@ async def verify_whatsapp_webhook(request: Request):
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
 
-    if mode == "subscribe" and token == settings.META_WEBHOOK_VERIFY_TOKEN:
+    # Using direct os.getenv for maximum reliability during verification
+    expected_token = os.getenv("META_WEBHOOK_VERIFY_TOKEN", "mehfoozai_test_2024")
+    
+    logger.info(f"🔍 Webhook Verification Attempt: mode={mode}, token={token}")
+
+    if mode == "subscribe" and token == expected_token:
         logger.info("✅ Webhook verified successfully!")
         return Response(content=challenge, media_type="text/plain")
     
-    logger.warning(f"❌ Webhook verification failed. Token mismatch: {token}")
+    logger.warning(f"❌ Webhook verification failed. Expected {expected_token}, got {token}")
     return Response(content="Forbidden", status_code=403)
 
-@app.post("/webhook")
+@app.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Meta WhatsApp webhook.
@@ -225,6 +235,8 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     - Offloads all processing to avoid Meta retries.
     """
     try:
+        raw_body = await request.body()
+        logger.info(f"📥 Incoming Webhook Raw Body: {raw_body.decode('utf-8')}")
         body = await request.json()
         if body.get("object") == "whatsapp_business_account":
             # Process in background to prevent timeout

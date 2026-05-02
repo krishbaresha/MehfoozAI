@@ -1,4 +1,4 @@
-from src.db.supabase import get_case_status
+from src.db.supabase_client import get_case_status
 
 STATUS_EMOJIS = {
     "pending":  "⏳",
