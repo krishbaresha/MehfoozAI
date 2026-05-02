@@ -23,7 +23,7 @@ export default function LegalPage() {
         <section style={{ marginBottom: 40 }}>
           <h2 style={{ fontSize: 24, marginBottom: 16, color: C.lavender }}>1. Privacy Policy</h2>
           <p style={{ color: C.text2, lineHeight: 1.6, marginBottom: 10 }}>
-            MehfoozAI ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how your information is collected, used, and protected when you use our anonymous harassment reporting platform.
+            MehfoozAI (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how your information is collected, used, and protected when you use our anonymous harassment reporting platform.
           </p>
           <ul style={{ color: C.text2, lineHeight: 1.6, paddingLeft: 20 }}>
             <li><strong>Data Collection:</strong> We collect only the information you voluntarily provide via WhatsApp, including text, audio, and location data, strictly for the purpose of generating incident reports (FIRs).</li>
@@ -45,7 +45,7 @@ export default function LegalPage() {
             If you wish to delete your data or history from MehfoozAI:
           </p>
           <ul style={{ color: C.text2, lineHeight: 1.6, paddingLeft: 20 }}>
-            <li>Send the word <strong>"DELETE MY DATA"</strong> to our WhatsApp bot.</li>
+            <li>Send the word <strong>&quot;DELETE MY DATA&quot;</strong> to our WhatsApp bot.</li>
             <li>Alternatively, you can email us at <strong>krishbsha778@gmail.com</strong> with your registered WhatsApp number, and our team will wipe all records associated with your case within 24 hours.</li>
           </ul>
         </section>

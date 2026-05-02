@@ -301,7 +301,7 @@ export default function LandingPage() {
             <div style={{ display: "flex", gap: isMobile ? 15 : 32, flexWrap: "wrap", justifyContent: "center" }}>
               <Link href="/dashboard" className="footer-link">Dashboard</Link>
               <Link href="/authority" className="footer-link">Authority Login</Link>
-              <a href="#" className="footer-link">Privacy Policy</a>
+              <Link href="/legal" className="footer-link">Legal & Privacy</Link>
             </div>
           </div>
         </div>
