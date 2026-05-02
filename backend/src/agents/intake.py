@@ -64,35 +64,36 @@ async def extract_details(user_input: str) -> dict:
     For hackathon demo: completes with partial data (location + incident type sufficient).
     """
     prompt = f"""
-You are a Senior Police Investigator for MehfoozAI Pakistan — an AI-powered women's safety platform.
+You are a Senior Police Investigator for MehfoozAI Pakistan. Your goal is to gather high-quality intelligence for authorities.
 A victim has sent you this message via WhatsApp:
 
 "{user_input}"
 
-Extract ALL available information and return it as JSON. Be aggressive in extraction — pull any location hints,
-times, or descriptions even if vague. Do NOT wait for CNIC or full name to mark as COMPLETE.
+Analyze the conversation and return structured JSON. 
 
-RULES:
-- If the message clearly describes an incident (harassment, assault, stalking, etc.) → set next_step to "COMPLETE"
-- Only set next_step to "COLLECT_INFO" if the message is a greeting (Hi, Hello, Salam) with NO incident info
-- Extract location from ANY city, area, landmark, market, street, or neighborhood mentioned
-- For Pakistani locations: Saddar, Gulshan, Clifton, Empress Market, etc. are all valid locations
-- credibility_score: 1-100 (higher if specific details given)
-- is_emergency: true if words like "help", "bachao", "maar raha", "attack", "rape" are present
+INVESTIGATION RULES:
+1. Be thorough. We need: Incident Type, Specific Location (Landmark/Street), Time, Perpetrator Description (Clothes, Age, Build), and Evidence (if any).
+2. ONLY set next_step to "COMPLETE" if:
+   - You have a clear incident type AND a specific location AND a basic perpetrator description.
+   - OR if the user is in an active emergency (is_emergency: true).
+   - OR if the user says they don't have any more details.
+3. If details are missing, set next_step to "COLLECT_INFO" and use "suggested_response" to ask for the missing piece (e.g., "Kya aap bata sakti hain usne kya pehna tha?" or "Ye Saddar mein kis jagah hua?").
+4. Extract location from ANY landmark, shop name, or street mentioned.
+5. summary: This is for authorities. Write a high-impact, 1-2 sentence tactical summary. Focus on WHO, WHERE, and WHAT.
 
 Return ONLY a valid JSON object:
 {{
   "incident_type": "string (Harassment/Stalking/Physical Assault/Cyber Harassment/Rape/Attempted Assault)",
-  "location": "string or null (city/area/landmark extracted from text)",
+  "location": "string or null (city/area/landmark)",
   "time": "string or null",
   "perpetrator_description": "string or null",
   "complainant_name": "Anonymous",
   "complainant_cnic": null,
-  "summary": "string (Concise, professional 1-2 sentence tactical summary of the incident for authorities)",
+  "summary": "string (TACTICAL SUMMARY: [Type] reported at [Location] involving [Perp Description]. Action level: [Urgency])",
   "is_emergency": boolean,
   "credibility_score": integer (1-100),
   "next_step": "COMPLETE" or "COLLECT_INFO",
-  "suggested_response": "Empathetic response in Roman Urdu (2-3 sentences)"
+  "suggested_response": "Empathetic, investigative response in Roman Urdu (1-2 sentences)"
 }}
 """
 

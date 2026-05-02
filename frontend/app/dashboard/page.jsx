@@ -130,7 +130,7 @@ const Sidebar = ({ active, setActive, caseCount }) => {
     <div style={{ width:216, background:C.deep, borderRight:`1px solid ${C.border}`,
       display:"flex", flexDirection:"column", flexShrink:0, height:"100vh" }}>
     {/* Logo */}
-    <div style={{ padding:"22px 18px 18px", borderBottom:`1px solid ${C.border}` }}>
+    <div style={{ padding:"22px 18px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
         <div style={{ width:36, height:36, borderRadius:10, flexShrink:0,
           background:"linear-gradient(135deg,#e8637a,#b5395a)",
@@ -145,6 +145,10 @@ const Sidebar = ({ active, setActive, caseCount }) => {
             textTransform:"uppercase", marginTop:2 }}>Women's Safety</div>
         </div>
       </div>
+      {/* Mobile close button */}
+      <button className="mobile-only" onClick={() => setActive('close')} style={{ background:"transparent", border:"none", color:C.text2, cursor:"pointer", padding:5 }}>
+        <Ico name="chevronL" size={20} />
+      </button>
     </div>
 
     {/* Nav */}
@@ -204,35 +208,65 @@ const Sidebar = ({ active, setActive, caseCount }) => {
 };
 
 /* ─── TOP BAR ─────────────────────────────────────────────────────────────── */
-const TopBar = ({ title, subtitle, activeCount = 0 }) => (
-  <div style={{ padding:"20px 26px 0", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-    <div>
-      <h1 style={{ fontSize:21, fontWeight:700, fontFamily:"var(--font-display)",
-        letterSpacing:"-0.025em", color:C.text, lineHeight:1.1 }}>{title}</h1>
-      {subtitle && <p style={{ fontSize:12.5, color:C.text2, marginTop:4 }}>{subtitle}</p>}
+const TopBar = ({ title, subtitle, activeCount = 0, onMenuClick, isMobile }) => (
+  <header style={{ 
+    display: "flex", 
+    justifyContent: "space-between", 
+    alignItems: "center", 
+    padding: isMobile ? "14px 18px" : "16px 26px",
+    background: "rgba(10, 11, 15, 0.4)",
+    backdropFilter: "blur(12px)",
+    borderBottom: `1px solid ${C.border}`,
+    width: "100%",
+    zIndex: 10
+  }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {isMobile && (
+        <button onClick={onMenuClick} style={{ 
+          background: C.surface, 
+          border: `1px solid ${C.border}`, 
+          borderRadius: 8, 
+          padding: 8, 
+          color: C.text2, 
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center"
+        }}>
+          <Ico name="grid" size={20} />
+        </button>
+      )}
+      <div>
+        <h1 style={{ fontSize: isMobile ? 18 : 21, fontWeight: 700, fontFamily: "var(--font-display)",
+          letterSpacing: "-0.025em", color: C.text, lineHeight: 1.1 }}>{title}</h1>
+        {subtitle && !isMobile && <p style={{ fontSize: 12.5, color: C.text2, marginTop: 4 }}>{subtitle}</p>}
+      </div>
     </div>
+
     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 14px",
-        background:C.deep, borderRadius:20, border:`1px solid ${C.border}`,
-        boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+      <div className="hide-mobile" style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 14px",
+        background:C.deep, borderRadius:20, border:`1px solid ${C.border}` }}>
         <span style={{ width:6, height:6, borderRadius:"50%", background:C.teal, animation:"pulse 2s infinite" }} />
         <span style={{ fontSize:10.5, color:C.teal, fontWeight:700, letterSpacing:"0.05em", textTransform:"uppercase" }}>Live Sync</span>
       </div>
+      
       <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px",
         background:C.roseDim, borderRadius:20, border:`1px solid rgba(232,99,122,0.22)` }}>
         <span style={{ width:6, height:6, borderRadius:"50%", background:C.rose, animation:"pulse 1.5s infinite" }} />
-        <span style={{ fontSize:11.5, color:C.roseLight, fontWeight:500 }}>{activeCount} Active Alert{activeCount !== 1 ? 's' : ''}</span>
+        <span style={{ fontSize:11.5, color:C.roseLight, fontWeight:500 }}>{activeCount} Alert{activeCount !== 1 ? 's' : ''}</span>
       </div>
-      <div style={{ width:32, height:32, borderRadius:"50%", background:C.surface2,
-        display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:`1px solid ${C.border2}` }}>
-        <Ico name="users" size={18} color={C.text2} />
-      </div>
+
+      {!isMobile && (
+        <div style={{ width:32, height:32, borderRadius:"50%", background:C.surface2,
+          display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:`1px solid ${C.border2}` }}>
+          <Ico name="users" size={18} color={C.text2} />
+        </div>
+      )}
     </div>
-  </div>
+  </header>
 );
 
 /* ─── DASHBOARD SCREEN ───────────────────────────────────────────────────── */
-const DashboardScreen = ({ apiData }) => {
+const DashboardScreen = ({ apiData, isMobile }) => {
   const { stats: s, cases } = apiData;
   const stats = [
     { label:"Total Cases",   value:s.total_reports || "0", sub:"overall",         icon:"file",  color:C.rose,    trend:null },
@@ -242,13 +276,14 @@ const DashboardScreen = ({ apiData }) => {
   ];
 
   const activity = cases.length > 0 ? cases.slice(0, 5).map(c => ({
-    title: `New report — ${c.type} in ${c.location.split(',')[0]}`,
+    title: c.type,
+    summary: c.summary || "No summary available.",
     time: "Just now",
     id: c.id,
     status: c.status,
     accent: c.status === 'routed' ? C.teal : C.lavender
   })) : [
-    { title: "Waiting for new reports...", time: "Live Sync", id: "0", status: "pending", accent: C.teal }
+    { title: "Waiting...", summary: "Waiting for new reports...", time: "Live Sync", id: "0", status: "pending", accent: C.teal }
   ];
 
   const counts = {};
@@ -260,9 +295,9 @@ const DashboardScreen = ({ apiData }) => {
   })).sort((a,b) => b.pct - a.pct).slice(0, 5);
 
   return (
-    <div style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column", gap:14, flex:1, overflowY:"auto" }}>
+    <div className="dashboard-grid" style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column", gap:14, flex:1, overflowY:"auto" }}>
       {/* Stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+      <div className="stats-container" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
         {stats.map((s, i) => (
           <div key={i} className="stat-card" style={{ background:C.surface, border:`1px solid ${C.border}`,
             borderRadius:16, padding:"18px 20px", position:"relative", overflow:"hidden",
@@ -289,7 +324,7 @@ const DashboardScreen = ({ apiData }) => {
       </div>
 
       {/* Lower panels */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, flex:1 }}>
+      <div className="panels-container" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, flex:1 }}>
         {/* Activity feed */}
         <Card style={{ padding:"18px 20px", display:"flex", flexDirection:"column", gap:12 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -303,9 +338,14 @@ const DashboardScreen = ({ apiData }) => {
               }}>  
                 <div style={{ width:2.5, background:a.accent, borderRadius:2,
                   flexShrink:0, margin:"2px 0", alignSelf:"stretch" }} />
-                <div style={{ display:"flex", flexDirection:"column" }}>
-                  <div style={{ fontSize:12.5, color:C.text, lineHeight:1.45 }}>{a.title}</div>
-                  <div style={{ fontSize:11, color:C.text3, marginTop:2 }}>{a.time}</div>
+                <div style={{ display:"flex", flexDirection:"column", flex:1 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div style={{ fontSize:12.5, color:C.text, fontWeight:600 }}>{a.title}</div>
+                    <div style={{ fontSize:10, color:C.text3 }}>{a.time}</div>
+                  </div>
+                  <div style={{ fontSize:11.5, color:C.text2, marginTop:4, lineHeight:1.5, fontStyle:"italic" }}>
+                    "{a.summary}"
+                  </div>
                 </div>
               </div>
             ))}
@@ -346,7 +386,7 @@ const DashboardScreen = ({ apiData }) => {
 };
 
 /* ─── WHATSAPP SCREEN ────────────────────────────────────────────────────── */
-const WhatsAppScreen = ({ showUrdu }) => {
+const WhatsAppScreen = ({ showUrdu, isMobile }) => {
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState(false);
   const [started, setStarted] = useState(false);
@@ -396,9 +436,15 @@ const WhatsAppScreen = ({ showUrdu }) => {
   const agentProgress = messages.length;
 
   return (
-    <div style={{ padding:"16px 26px 20px", display:"flex", flex:1, gap:16, overflow:"hidden" }}>
+    <div className="whatsapp-container" style={{ padding:"16px 26px 20px", display:"flex", flex:1, gap:16, overflow:"hidden" }}>
+      <style>{`
+        @media (max-width: 1024px) {
+          .whatsapp-container { flex-direction: column !important; overflow-y: auto !important; padding: 12px 16px !important; }
+          .phone-mockup { flex: none !important; width: 100% !important; max-width: 340px; margin: 0 auto; }
+        }
+      `}</style>
       {/* Phone */}
-      <div style={{ display:"flex", flexDirection:"column", flex:"0 0 340px", gap:10 }}>
+      <div className="phone-mockup" style={{ display:"flex", flexDirection:"column", flex:"0 0 340px", gap:10 }}>
         <div style={{ fontSize:12, color:C.text2, fontWeight:500 }}>Live WhatsApp Simulation</div>
         <div style={{ flex:1, background:"#0a0f1a", borderRadius:22,
           border:`1px solid ${C.border2}`, overflow:"hidden", display:"flex",
@@ -636,7 +682,7 @@ const ResolveModal = ({ caseData, onClose, onResolved }) => {
 };
 
 /* ─── CASES SCREEN ───────────────────────────────────────────────────────── */
-const CasesScreen = ({ cases = [], onSelectCase, onCaseResolved }) => {
+const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
   const [filter, setFilter] = useState("all");
   const [resolveTarget, setResolveTarget] = useState(null);
   const FILTERS = ["all","pending","drafted","routed"];
@@ -663,74 +709,105 @@ const CasesScreen = ({ cases = [], onSelectCase, onCaseResolved }) => {
 
       {/* Table */}
       <Card style={{ overflow:"hidden", flex:1, display:"flex", flexDirection:"column" }}>
-        {/* Header row */}
-        <div style={{ display:"grid", gridTemplateColumns:"150px 1fr 130px 1fr 105px 90px 145px",
-          padding:"9px 18px", borderBottom:`1px solid ${C.border}`, background:C.midnight }}>
-          {["Case ID","Type","Location","PPC Sections","Status","Cred.","Actions"].map(h => (
-            <div key={h} style={{ fontSize:9.5, fontWeight:600, color:C.text3,
-              letterSpacing:"0.07em", textTransform:"uppercase" }}>{h}</div>
-          ))}
-        </div>
-        {/* Rows */}
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {filtered.map((c, i) => (
-            <div key={c.id} className="row-hover"
-              onClick={() => onSelectCase(c)}
-              style={{ display:"grid", gridTemplateColumns:"150px 1fr 130px 1fr 105px 90px 145px",
-                padding:"13px 18px", alignItems:"center",
-                borderBottom: i < filtered.length-1 ? `1px solid ${C.border}` : "none",
-              }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                <UrgencyDot urgency={c.urgency} />
-                <span style={{ fontSize:11.5, color:C.text2, fontFamily:"monospace" }}>{c.id}</span>
-              </div>
-              <div style={{ fontSize:13, color:C.text, fontWeight:500 }}>{c.type}</div>
-              <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, color:C.text2 }}>
-                <Ico name="pin" size={11} color={C.text3} />
-                {c.location}
-              </div>
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                {c.ppc.map(p => (
-                  <span key={p} style={{ fontSize:9.5, color:C.lavender,
-                    background:C.lavenderDim, padding:"2px 7px", borderRadius:8 }}>{p}</span>
-                ))}
-              </div>
-              <StatusBadge status={c.status} />
-              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ flex:1, height:4, background:C.surface2, borderRadius:2, overflow:"hidden" }}>
-                      <div style={{ width:`${c.credibility}%`, height:"100%", background: c.credibility > 70 ? C.green : c.credibility > 40 ? C.amber : C.red }} />
+        <div style={{ overflowX:"auto" }}>
+          <div style={{ minWidth: 800 }}>
+            {/* Header row */}
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: isMobile ? "1fr 100px 80px 40px" : "150px 100px 120px 1fr 120px 90px 70px 145px",
+              padding: isMobile ? "10px 12px" : "9px 18px", 
+              borderBottom: `1px solid ${C.border}`, 
+              background: C.midnight 
+            }} className="header-row">
+              {["Case ID","Type","Location","Quick Intel","PPC Sections","Status","Cred.","Actions"].map((h, idx) => {
+                const isHiddenOnMobile = [0, 3, 4, 6].includes(idx);
+                return (
+                  <div key={h} className={isHiddenOnMobile ? "col-hide-mobile" : ""} 
+                    style={{ fontSize: 9.5, fontWeight: 600, color: C.text3,
+                    letterSpacing: "0.07em", textTransform: "uppercase" }}>{h}</div>
+                );
+              })}
+            </div>
+            {/* Rows */}
+            <div style={{ overflowY:"auto", maxHeight:"calc(100vh - 250px)" }}>
+              {filtered.map((c, i) => (
+                <div key={c.id} className="row-hover"
+                  onClick={() => onSelectCase(c)}
+                  style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: isMobile ? "1fr 100px 80px 40px" : "150px 100px 120px 1fr 120px 90px 70px 145px",
+                    padding: isMobile ? "12px" : "13px 18px", 
+                    alignItems: "center",
+                    borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none",
+                  }}>
+                  {/* Case ID */}
+                  <div className="col-hide-mobile" style={{ fontSize: 10, color: C.text3, fontWeight: 600, fontFamily: "monospace" }}>{c.id}</div>
+                  
+                  {/* Type */}
+                  <div style={{ fontSize: isMobile ? 13 : 12, fontWeight: 700, color: C.text }}>{c.type}</div>
+                  
+                  {/* Location */}
+                  <div style={{ fontSize: 11, color: C.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.location}</div>
+                  
+                  {/* Quick Intel */}
+                  <div className="col-hide-mobile" style={{ fontSize: 10.5, color: C.green, lineHeight: 1.4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 15 }}>
+                    {c.summary || "Pending intelligence extraction..."}
                   </div>
-                  <span style={{ fontSize:10, color:C.text2, fontWeight:600 }}>{c.credibility}%</span>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                <button onClick={e => { e.stopPropagation(); onSelectCase(c); }}
-                  style={{ display:"flex", alignItems:"center", gap:3, padding:"4px 8px",
-                    borderRadius:7, border:`1px solid ${C.border2}`, background:"transparent",
-                    color:C.text2, fontSize:10.5, cursor:"pointer" }}>
-                  <Ico name="eye" size={11} color="currentColor" />View
-                </button>
-                <button onClick={e => { e.stopPropagation(); setResolveTarget(c); }}
-                  style={{ display:"flex", alignItems:"center", gap:3, padding:"4px 8px",
-                    borderRadius:7, border:"1px solid rgba(52,211,153,0.3)",
-                    background:"rgba(52,211,153,0.08)",
-                    color:C.green, fontSize:10.5, cursor:"pointer", whiteSpace:"nowrap" }}>
-                  ✅ Resolve
-                </button>
-              </div>
+
+                  {/* PPC */}
+                  <div className="col-hide-mobile" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {(c.ppc || []).slice(0, 2).map(p => (
+                      <span key={p} style={{ fontSize: 8.5, padding: "2px 5px", background: "rgba(167,139,250,0.1)", color: C.lavender, borderRadius: 4, fontWeight: 700 }}>{p}</span>
+                    ))}
+                  </div>
+
+                  {/* Status */}
+                  <div><StatusBadge status={c.status} /></div>
+
+                  {/* Credibility */}
+                  <div className="col-hide-mobile">
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 32, height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 2 }}>
+                        <div style={{ height: "100%", width: `${c.credibility}%`, background: c.credibility > 70 ? C.green : C.amber, borderRadius: 2 }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: C.text3 }}>{c.credibility}%</span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: isMobile ? "flex-end" : "flex-start" }}>
+                    {!isMobile && (
+                      <button onClick={e => { e.stopPropagation(); onSelectCase(c); }}
+                        style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 8px",
+                          borderRadius: 7, border: `1px solid ${C.border2}`, background: "transparent",
+                          color: C.text2, fontSize: 10.5, cursor: "pointer" }}>
+                        <Ico name="eye" size={11} color="currentColor" />
+                      </button>
+                    )}
+                    <button onClick={e => { e.stopPropagation(); setResolveTarget(c); }}
+                      style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 8px",
+                        borderRadius: 7, border: "1px solid rgba(52,211,153,0.3)",
+                        background: "rgba(52,211,153,0.08)",
+                        color: C.green, fontSize: 10.5, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      ✅
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {filtered.length === 0 && (
+                <div style={{ padding:"40px", textAlign:"center", color:C.text3, fontSize:13 }}>
+                  No active cases. Check <strong style={{color:C.green}}>Solved Cases</strong> for resolved ones.
+                </div>
+              )}
             </div>
-          ))}
-          {filtered.length === 0 && (
-            <div style={{ padding:"40px", textAlign:"center", color:C.text3, fontSize:13 }}>
-              No active cases. Check <strong style={{color:C.green}}>Solved Cases</strong> for resolved ones.
-            </div>
-          )}
+          </div>
         </div>
       </Card>
       {resolveTarget && (
         <ResolveModal
           caseData={resolveTarget}
           onClose={() => setResolveTarget(null)}
-          onResolved={(id) => { onCaseResolved(id); setResolveTarget(null); }}
+          onResolved={(id) => { onResolve(id); setResolveTarget(null); }}
         />
       )}
     </div>
@@ -738,68 +815,45 @@ const CasesScreen = ({ cases = [], onSelectCase, onCaseResolved }) => {
 };
 
 /* ─── SOLVED CASES SCREEN ───────────────────────────────────────────────── */
-const SolvedCasesScreen = ({ cases = [] }) => {
+const SolvedCasesScreen = ({ cases = [], isMobile }) => {
   const solved = cases.filter(c => c.status === "closed");
+
   return (
-    <div style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column",
-      gap:14, flex:1, overflow:"hidden" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-        <div style={{ width:32, height:32, borderRadius:"50%", background:C.greenDim,
-          display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <Ico name="check" size={16} color={C.green} />
-        </div>
-        <div>
-          <div style={{ fontSize:14, fontWeight:700, color:C.text }}>Solved Cases</div>
-          <div style={{ fontSize:11, color:C.text2 }}>{solved.length} case{solved.length!==1?"s":""} successfully resolved</div>
+    <div style={{ padding: isMobile ? "12px" : "16px 26px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1, overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ padding: "8px 14px", borderRadius: 20, background: C.greenDim, color: C.green, fontSize: 12, fontWeight: 700 }}>
+          {solved.length} Cases Resolved
         </div>
       </div>
-
-      <Card style={{ overflow:"hidden", flex:1, display:"flex", flexDirection:"column" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"155px 1fr 140px 1fr 120px",
-          padding:"9px 18px", borderBottom:`1px solid ${C.border}`, background:C.midnight }}>
-          {["Case ID","Type","Location","PPC Sections","Resolved At"].map(h => (
-            <div key={h} style={{ fontSize:9.5, fontWeight:600, color:C.text3,
-              letterSpacing:"0.07em", textTransform:"uppercase" }}>{h}</div>
+      
+      {solved.length === 0 ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, opacity: 0.6 }}>
+          <Ico name="shield" size={40} color={C.text3} />
+          <div style={{ color: C.text3, fontSize: 14 }}>No cases have been resolved yet.</div>
+        </div>
+      ) : (
+        <div className="panels-container" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+          {solved.map(c => (
+            <Card key={c.id} style={{ padding: 16, border: `1px solid ${C.greenDim}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: C.text3, fontWeight: 600 }}>{c.id}</div>
+                <div style={{ fontSize: 10, color: C.green, fontWeight: 800, textTransform: "uppercase" }}>Resolved ✓</div>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>{c.type}</div>
+              <div style={{ fontSize: 12, color: C.text2, marginBottom: 12 }}>{c.location} · {c.time}</div>
+              <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.5, background: C.midnight, padding: 10, borderRadius: 8 }}>
+                {c.desc.substring(0, 100)}...
+              </div>
+            </Card>
           ))}
         </div>
-        <div style={{ overflowY:"auto", flex:1 }}>
-          {solved.map((c, i) => (
-            <div key={c.id}
-              style={{ display:"grid", gridTemplateColumns:"155px 1fr 140px 1fr 120px",
-                padding:"13px 18px", alignItems:"center",
-                borderBottom: i < solved.length-1 ? `1px solid ${C.border}` : "none",
-                opacity:0.85 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                <span style={{ fontSize:13 }}>✅</span>
-                <span style={{ fontSize:11.5, color:C.text2, fontFamily:"monospace" }}>{c.id}</span>
-              </div>
-              <div style={{ fontSize:13, color:C.text2 }}>{c.type}</div>
-              <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:12, color:C.text3 }}>
-                <Ico name="pin" size={11} color={C.text3} />{c.location}
-              </div>
-              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                {(c.ppc||[]).map(p => (
-                  <span key={p} style={{ fontSize:9.5, color:C.lavender,
-                    background:C.lavenderDim, padding:"2px 7px", borderRadius:8 }}>{p}</span>
-                ))}
-              </div>
-              <div style={{ fontSize:11, color:C.green }}>{c.time}</div>
-            </div>
-          ))}
-          {solved.length === 0 && (
-            <div style={{ padding:"60px", textAlign:"center", color:C.text3, fontSize:13, lineHeight:1.7 }}>
-              No resolved cases yet.<br/>
-              Go to <strong style={{color:C.rose}}>Case Tracker</strong> and click <strong style={{color:C.green}}>✅ Resolve</strong> on any case.
-            </div>
-          )}
-        </div>
-      </Card>
+      )}
     </div>
   );
 };
 
 /* ─── FIR VIEWER ─────────────────────────────────────────────────────────── */
-const FIRViewer = ({ selectedCase, onBack }) => {
+const FIRViewer = ({ selectedCase, onBack, isMobile }) => {
   const c = selectedCase || { id: "MHZ-XXXX", time: "N/A", authority: "N/A", type: "N/A", location: "N/A", desc: "No case selected", ppc: [], urgency: "low" };
   const [lang, setLang] = useState("en");
 
@@ -813,6 +867,9 @@ Police Station : ${c.authority}
 COMPLAINANT    : Anonymous (Identity Protected)
 INCIDENT TYPE  : ${c.type}
 LOCATION       : ${c.location}
+
+TACTICAL SUMMARY (AI):
+${c.summary || "No summary available."}
 
 STATEMENT OF FACTS:
 ${c.desc}
@@ -886,7 +943,7 @@ ${c.ppc.map(p => `  • ${p}`).join("\n")}
         </div>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:14, flex:1, overflow:"hidden" }}>
+      <div className="fir-layout" style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:14, flex:1, overflow:"hidden" }}>
         {/* FIR document */}
         <Card style={{ padding:"22px 26px", overflowY:"auto" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:18,
@@ -1025,6 +1082,15 @@ const HeatmapScreen = () => <LiveSafetyMap />;
 
 /* ─── ROOT APP ───────────────────────────────────────────────────────────── */
 const App = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkSize = () => setIsMobile(window.innerWidth < 1024);
+    checkSize();
+    window.addEventListener('resize', checkSize);
+    return () => window.removeEventListener('resize', checkSize);
+  }, []);
+
   const [tweaks, setTweak] = useState({
     "accentColor": "#e8637a",
     "density": "comfortable",
@@ -1037,6 +1103,7 @@ const App = () => {
     stats: { total_reports: 0, cases_routed: 0, firs_generated: 0, heatmap_points: 0 },
     cases: []
   });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchParams = useSearchParams();
   
   useEffect(() => {
@@ -1094,9 +1161,16 @@ const App = () => {
   }, []);
 
   const handleSelectCase = (c) => { setSelectedCase(c); setScreen("fir"); };
-  const handleNav = (s) => { setScreen(s); if (s !== "fir") setSelectedCase(null); };
+  const handleNav = (s) => { 
+    if (s === 'close') {
+      setSidebarOpen(false);
+      return;
+    }
+    setScreen(s); 
+    setSidebarOpen(false); // Close on mobile after selection
+    if (s !== "fir") setSelectedCase(null); 
+  };
 
-  // Optimistically mark a case as closed in local state (instant UI update)
   const handleCaseResolved = (caseId) => {
     setApiData(prev => ({
       ...prev,
@@ -1117,17 +1191,71 @@ const App = () => {
   const meta = META[screen];
 
   return (
-    <div className="intelligence-grid" style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden" }}>
-      <Sidebar active={screen} setActive={handleNav} caseCount={apiData.cases.filter(c => c.status !== 'closed').length} />
+    <div className="intelligence-grid" style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden", position:"relative" }}>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes dotBlink { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+        
+        .row-hover { transition: all 0.2s; cursor: pointer; border-bottom: 1px solid ${C.border}; }
+        .row-hover:hover { background: rgba(255,255,255,0.02); }
+        .nav-item { transition: all 0.3s; }
+        .nav-item:hover { background: rgba(255,255,255,0.05); }
+        .pill-btn { transition: all 0.2s; }
+        .pill-btn:hover { transform: translateY(-1px); }
+        
+        .mobile-only { display: none !important; }
+        .mobile-sidebar-overlay { display: none; }
+
+        @media (max-width: 1024px) {
+          .mobile-only { display: flex !important; }
+          .hide-mobile { display: none !important; }
+          
+          .mobile-sidebar {
+            position: fixed; top: 0; left: 0; z-index: 1000;
+            height: 100vh; width: 280px !important;
+            transform: translateX(${sidebarOpen ? '0' : '-100%'});
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 20px 0 50px rgba(0,0,0,0.6);
+            background: ${C.deep};
+          }
+          .mobile-sidebar-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px); z-index: 999;
+            display: ${sidebarOpen ? 'block' : 'none'};
+            animation: fadeIn 0.3s ease;
+          }
+          
+          .stats-container { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .panels-container { grid-template-columns: 1fr !important; }
+          .fir-layout { grid-template-columns: 1fr !important; overflow-y: auto !important; }
+          .dashboard-grid { padding: 12px !important; overflow-y: auto !important; }
+          .whatsapp-container { flex-direction: column !important; overflow-y: auto !important; padding: 12px !important; }
+          
+          .col-hide-mobile { display: none !important; }
+        }
+      `}</style>
+      
+      <div className="mobile-sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+      <div className="mobile-sidebar" style={{ height: '100%' }}>
+        <Sidebar active={screen} setActive={handleNav} caseCount={apiData.cases.filter(c => c.status !== 'closed').length} />
+      </div>
+      
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-        <TopBar title={meta.title} subtitle={meta.sub} activeCount={apiData.cases.filter(c => c.status !== 'closed').length} />
+        <TopBar 
+          title={meta.title} 
+          subtitle={meta.sub} 
+          activeCount={apiData.cases.filter(c => c.status !== 'closed').length} 
+          onMenuClick={() => setSidebarOpen(true)}
+          isMobile={isMobile}
+        />
         <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-          {screen === "dashboard" && <DashboardScreen apiData={apiData} />}
-          {screen === "whatsapp"  && <WhatsAppScreen showUrdu={tweaks.showUrdu} />}
-          {screen === "cases"     && <CasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} onCaseResolved={handleCaseResolved} />}
-          {screen === "fir"       && <FIRViewer selectedCase={selectedCase || apiData.cases[0]} onBack={() => setScreen("cases")} />}
+          {screen === "dashboard" && <DashboardScreen apiData={apiData} isMobile={isMobile} />}
+          {screen === "whatsapp"  && <WhatsAppScreen showUrdu={tweaks.showUrdu} isMobile={isMobile} />}
+          {screen === "cases"     && <CasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} onResolve={handleCaseResolved} isMobile={isMobile} />}
+          {screen === "fir"       && <FIRViewer selectedCase={selectedCase || apiData.cases[0]} onBack={() => setScreen("cases")} isMobile={isMobile} />}
           {screen === "heatmap"   && <HeatmapScreen />}
-          {screen === "solved"    && <SolvedCasesScreen cases={apiData.cases} />}
+          {screen === "solved"    && <SolvedCasesScreen cases={apiData.cases} isMobile={isMobile} />}
         </div>
       </div>
     </div>

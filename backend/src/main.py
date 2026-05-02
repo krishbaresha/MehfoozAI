@@ -118,14 +118,21 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
 
         logger.info(f"🚀 Starting pipeline for {sender}: {user_text[:80] if user_text else 'Media'}")
         
-        # 1. Run Intelligence Pipeline (Graph)
-        result = await run_pipeline(user_text)
+        # 1. Run Intelligence Pipeline (Graph) with full context
+        full_context = SESSIONS[sender]["full_text"]
+        result = await run_pipeline(full_context)
         intake_data = result.get("details") or {}
+        next_step = intake_data.get("next_step", "COMPLETE")
         
-        # 2. Generate anonymous Case ID
+        # 2. If it's a follow-up (COLLECT_INFO), reply but don't finalize everything yet
+        if next_step == "COLLECT_INFO":
+            reply = intake_data.get("suggested_response", "Shukriya. Kya aap mazeed tafseelat bata sakti hain?")
+            await send_whatsapp_reply(sender, reply)
+            logger.info(f"🔍 Follow-up question sent to {sender}")
+            return {"status": "collecting_info"}
+
+        # 3. If COMPLETE, finalize and save
         case_id = generate_case_id()
-        
-        # 3. Save to Supabase (Guaranteed attempt)
         enriched_details = {
             **intake_data,
             "sender_phone": sender,
@@ -134,18 +141,15 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             "longitude": location_data.get("lon") if location_data else None,
         }
 
-        try:
-            await save_incident(
-                case_id=case_id,
-                transcription=user_text,
-                details=enriched_details,
-                fir_draft=result.get("fir_draft") or "Drafting in progress...",
-                ppc_sections=result.get("ppc_sections") or ["Section Pending"],
-                routing=result.get("routing") or {"status": "Automatic routing in progress"},
-                safety=result.get("safety_zone") or {"level": "Analyzing"}
-            )
-        except Exception as db_err:
-            logger.error(f"❌ DATABASE CRITICAL FAILURE: {db_err}")
+        await save_incident(
+            case_id=case_id,
+            transcription=full_context,
+            details=enriched_details,
+            fir_draft=result.get("fir_draft") or "Drafting in progress...",
+            ppc_sections=result.get("ppc_sections") or ["Section Pending"],
+            routing=result.get("routing") or {"status": "Automatic routing in progress"},
+            safety=result.get("safety_zone") or {"level": "Analyzing"}
+        )
         
         # 4. Update heatmap
         location = intake_data.get("location")
