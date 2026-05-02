@@ -2,9 +2,11 @@ import sqlite3
 import uuid
 import json
 from datetime import datetime
+from typing import Optional
 from loguru import logger
 import os
 
+from ..config.settings import settings
 from supabase import create_client, Client as SupabaseClient
 
 DB_PATH = "mehfooz.db"
