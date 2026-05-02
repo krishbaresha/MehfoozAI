@@ -19,6 +19,7 @@ import pytz
 from datetime import datetime
 
 PKST = pytz.timezone('Asia/Karachi')
+SESSIONS = {}
 
 app = FastAPI(
     title="MehfoozAI API",
@@ -104,9 +105,18 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
     Full pipeline: text → AI → Supabase → WhatsApp reply.
     """
     try:
-        logger.info(f"🚀 Starting pipeline for {sender}: {user_text[:80]}")
+        # Initialize session if not exists
+        if sender not in SESSIONS:
+            SESSIONS[sender] = {"full_text": "", "last_interaction": datetime.now()}
         
-        # 1. Run LangGraph (Intake → FIR → Routing → Safety Mapper)
+        # Add incoming to history
+        current_input = user_text or (f"[Location: {location_data}]" if location_data else "[Media/Voice Report]")
+        SESSIONS[sender]["full_text"] += f"\nUser: {current_input}"
+        SESSIONS[sender]["last_interaction"] = datetime.now()
+
+        logger.info(f"🚀 Starting pipeline for {sender}: {user_text[:80] if user_text else 'Media'}")
+        
+        # 1. Run Intelligence Pipeline (Graph)
         result = await run_pipeline(user_text)
         intake_data = result.get("details") or {}
         
@@ -122,7 +132,6 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             "longitude": location_data.get("lon") if location_data else None,
         }
 
-        # We extract specific fields safely
         try:
             await save_incident(
                 case_id=case_id,
@@ -135,7 +144,6 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             )
         except Exception as db_err:
             logger.error(f"❌ DATABASE CRITICAL FAILURE: {db_err}")
-            # Even if DB fails, we try to notify user (though it's bad)
         
         # 4. Update heatmap
         location = intake_data.get("location")
@@ -145,7 +153,7 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             except Exception as map_err:
                 logger.warning(f"Heatmap update failed: {map_err}")
         
-        # 5. Build Smart Response (Police Officer + Lawyer)
+        # 5. Build Smart Response
         next_step = intake_data.get("next_step", "COMPLETE")
         suggested_reply = intake_data.get("suggested_response", "")
         
@@ -156,10 +164,8 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             sections_list = result.get("ppc_sections") or ["Section 509 (PPC)"]
             sections_str = ", ".join(sections_list)
             
-            # Extract punishment from FIR Drafter or use default
             fir_result = result.get("fir_result", {})
             punishment = fir_result.get("legal_advice", "Legal action will be initiated as per PPC.")
-            summary_urdu = fir_result.get("fir_text_urdu", "Report register ho chuki hai.")
             
             pk_time = datetime.now(PKST).strftime("%I:%M %p")
             
@@ -174,19 +180,19 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
                 f"Aap `STATUS {case_id}` bhej kar update le sakte hain."
             )
 
-        # 6. Save AI Response to Memory for context in next message
-        if sender in SESSIONS:
-            SESSIONS[sender]["full_text"] += f"\nAI: {response_text}"
+        # 6. Save AI Response to History
+        SESSIONS[sender]["full_text"] += f"\nAI: {response_text}"
 
         await send_whatsapp_reply(sender, response_text)
-        
         logger.info(f"✅ Pipeline complete — Case ID: {case_id}")
 
     except Exception as e:
-        logger.error(f"Pipeline error for {sender}: {e}")
+        logger.error(f"❌ Pipeline error for {sender}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         await send_whatsapp_reply(
             sender,
-            "🛡️ MehfoozAI: Hum aapki report process kar rahe hain. Kuch der baad dobara try karein."
+            "⚠️ Maazrat, aapki report process karne mein technical masla hua hai. Humari team ise check kar rahi hai."
         )
 
 @app.get("/webhook")
