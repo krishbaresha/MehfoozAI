@@ -167,37 +167,48 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
                 logger.warning(f"Heatmap update failed: {map_err}")
         
         # 5. Build Smart Response
-        next_step = intake_data.get("next_step", "COMPLETE")
-        suggested_reply = intake_data.get("suggested_response", "")
-        
-        if next_step == "COLLECT_INFO" and suggested_reply:
-            response_text = f"👮 *Investigative Officer (MehfoozAI):*\n\n{suggested_reply}\n\n_Case ID: {case_id}_"
-        else:
-            # Full Report mode - Hardened against None values
-            sections_list = result.get("ppc_sections") or ["Section 509 (PPC)"]
-            sections_str = ", ".join(sections_list)
+        try:
+            next_step = intake_data.get("next_step", "COMPLETE")
+            suggested_reply = intake_data.get("suggested_response", "")
             
-            fir_result = result.get("fir_result") or {}
-            punishment = fir_result.get("legal_advice", "Legal action will be initiated as per PPC.")
-            
-            routing_data = result.get("routing") or {}
-            authority = routing_data.get("primary_authority", "nearest Women Police Station")
-            
-            pk_time = datetime.now(PKST).strftime("%I:%M %p")
-            
-            response_text = (
-                f"✅ *Official Report Registered*\n\n"
-                f"🆔 *Case ID:* {case_id}\n"
-                f"🕒 *Time:* {pk_time} (PKST)\n\n"
-                f"⚖️ *Legal Assessment (PPC):*\n"
-                f"• *Relevant Sections:* {sections_str}\n"
-                f"• *Next Steps:* {punishment}\n\n"
-                f"🚨 *Police Status:* Report forwarded to {authority}.\n\n"
-                f"Aap `STATUS {case_id}` bhej kar update le sakte hain."
-            )
+            if next_step == "COLLECT_INFO" and suggested_reply:
+                response_text = f"👮 *Investigative Officer (MehfoozAI):*\n\n{suggested_reply}\n\n_Case ID: {case_id}_"
+            else:
+                # Full Report mode - Hardened against any missing keys
+                sections_list = result.get("ppc_sections") or ["Section 509 (PPC)"]
+                sections_str = ", ".join(sections_list) if isinstance(sections_list, list) else str(sections_list)
+                
+                fir_result = result.get("fir_result") or {}
+                punishment = "Legal action will be initiated as per PPC."
+                if isinstance(fir_result, dict):
+                    punishment = fir_result.get("legal_advice") or punishment
+                
+                routing_data = result.get("routing") or {}
+                authority = "nearest Women Police Station"
+                if isinstance(routing_data, dict):
+                    authority = routing_data.get("primary_authority") or authority
+                
+                pk_time = datetime.now(PKST).strftime("%I:%M %p")
+                
+                response_text = (
+                    f"✅ *Official Report Registered*\n\n"
+                    f"🆔 *Case ID:* {case_id}\n"
+                    f"🕒 *Time:* {pk_time} (PKST)\n\n"
+                    f"⚖️ *Legal Assessment (PPC):*\n"
+                    f"• *Relevant Sections:* {sections_str}\n"
+                    f"• *Next Steps:* {punishment}\n\n"
+                    f"🚨 *Police Status:* Report forwarded to {authority}.\n\n"
+                    f"Aap `STATUS {case_id}` bhej kar update le sakte hain."
+                )
+        except Exception as msg_err:
+            logger.error(f"⚠️ Response building failed: {msg_err}")
+            response_text = f"✅ *Report Registered!*\n\n🆔 *Case ID:* {case_id}\n\nAapki report save ho gayi hai. Authorities jald hi rabta karein gi."
 
-        # 6. Save AI Response to History
-        SESSIONS[sender]["full_text"] += f"\nAI: {response_text}"
+        # 6. Save AI Response to History and clear session
+        if sender in SESSIONS:
+            SESSIONS[sender]["full_text"] += f"\nAI: {response_text}"
+            # Optional: Clear history after completion to start fresh next time
+            # del SESSIONS[sender] 
 
         await send_whatsapp_reply(sender, response_text)
         logger.info(f"✅ Pipeline complete — Case ID: {case_id}")
@@ -206,10 +217,11 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
         logger.error(f"❌ Pipeline error for {sender}: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        await send_whatsapp_reply(
-            sender,
-            "⚠️ Maazrat, aapki report process karne mein technical masla hua hai. Humari team ise check kar rahi hai."
-        )
+        error_msg = "⚠️ Maazrat, aapki report process karne mein technical masla hua hai. Humari team ise check kar rahi hai."
+        try:
+            await send_whatsapp_reply(sender, error_msg)
+        except:
+            pass
 
 @app.get("/webhook/whatsapp")
 async def verify_whatsapp_webhook(request: Request):
