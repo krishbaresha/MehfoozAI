@@ -41,6 +41,8 @@ async def send_whatsapp_reply(to_number: str, message: str):
         headers = {
             "Authorization": f"Bearer {settings.META_ACCESS_TOKEN.get_secret_value()}",
             "Content-Type": "application/json",
+            "User-Agent": "MehfoozAI/1.0",
+            "Accept": "application/json"
         }
         data = {
             "messaging_product": "whatsapp",
