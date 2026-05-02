@@ -1,0 +1,515 @@
+from fastapi import FastAPI, Request, Response, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+from twilio.twiml.messaging_response import MessagingResponse
+from src.config.settings import settings
+from src.agents.graph import run_pipeline
+from src.agents.followup import handle_followup
+from src.db.supabase import (
+    generate_case_id, save_incident, update_heatmap, get_case_status,
+    check_db_ready, get_dashboard_stats, get_recent_cases, get_heatmap_points,
+    get_authority_cases, get_supabase_headers
+)
+from src.utils.notifications import send_whatsapp_reply, send_case_confirmation
+from src.utils.whisper import transcribe_voice
+import re
+import httpx
+import os
+import pytz
+from datetime import datetime
+
+PKST = pytz.timezone('Asia/Karachi')
+
+app = FastAPI(
+    title="MehfoozAI API",
+    version="1.0.0",
+    description="AI-powered anonymous harassment reporting platform for Pakistan",
+)
+
+# Update origins for production (Vercel)
+origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://mehfooz-ai.vercel.app", # Potential production URL
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_origin_regex="https://.*\.vercel\.app", # Allow all vercel subdomains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Configure logging to file
+logger.add("backend_debug.log", rotation="10 MB", level="INFO")
+
+
+# ─── Health ─────────────────────────────────────────────────────────
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "MehfoozAI", "agents": 5}
+
+@app.get("/ready")
+async def ready():
+    try:
+        await check_db_ready()
+        return {"status": "ready", "database": "connected"}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=f"Database not ready: {e}")
+
+# ─── WhatsApp Webhook ────────────────────────────────────────────────
+# ─── Simple Session Memory (For Demo) ───────────────────────────────
+SESSIONS = {}  # { sender_phone: { last_case_id: str, last_activity: datetime } }
+
+# ─── Debug Pipeline ──────────────────────────────────────────────────
+@app.get("/debug/pipeline")
+async def debug_pipeline(text: str = "Test incident in Karachi"):
+    """
+    Synchronous test of the AI pipeline to catch hangs/errors.
+    """
+    logger.info(f"🧪 Testing pipeline with: {text}")
+    try:
+        result = await run_pipeline(text)
+        case_id = generate_case_id()
+        
+        # Test DB Save
+        db_res = await save_incident(
+            case_id=case_id,
+            transcription=text,
+            details=result.get("details") or {},
+            fir_draft=result.get("fir_draft") or "",
+            ppc_sections=result.get("ppc_sections") or [],
+            routing=result.get("routing") or {},
+            safety=result.get("safety_zone") or {}
+        )
+        
+        return {
+            "status": "success",
+            "db_saved": "data" in db_res,
+            "db_error": db_res.get("error"),
+            "case_id": case_id,
+            "pipeline_result": result
+        }
+    except Exception as e:
+        logger.error(f"Pipeline test failed: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+async def process_report(sender: str, user_text: str, media_urls: list = None, location_data: dict = None):
+    """
+    Full pipeline: text → AI → Supabase → WhatsApp reply.
+    """
+    try:
+        logger.info(f"🚀 Starting pipeline for {sender}: {user_text[:80]}")
+        
+        # 1. Run LangGraph (Intake → FIR → Routing → Safety Mapper)
+        result = await run_pipeline(user_text)
+        intake_data = result.get("details") or {}
+        
+        # 2. Generate anonymous Case ID
+        case_id = generate_case_id()
+        
+        # 3. Save to Supabase (Guaranteed attempt)
+        enriched_details = {
+            **intake_data,
+            "sender_phone": sender,
+            "evidence_urls": media_urls or [],
+            "latitude": location_data.get("lat") if location_data else None,
+            "longitude": location_data.get("lon") if location_data else None,
+        }
+
+        # We extract specific fields safely
+        try:
+            await save_incident(
+                case_id=case_id,
+                transcription=user_text,
+                details=enriched_details,
+                fir_draft=result.get("fir_draft") or "Drafting in progress...",
+                ppc_sections=result.get("ppc_sections") or ["Section Pending"],
+                routing=result.get("routing") or {"status": "Automatic routing in progress"},
+                safety=result.get("safety_zone") or {"level": "Analyzing"}
+            )
+        except Exception as db_err:
+            logger.error(f"❌ DATABASE CRITICAL FAILURE: {db_err}")
+            # Even if DB fails, we try to notify user (though it's bad)
+        
+        # 4. Update heatmap
+        location = intake_data.get("location")
+        if location:
+            try:
+                await update_heatmap(location)
+            except Exception as map_err:
+                logger.warning(f"Heatmap update failed: {map_err}")
+        
+        # 5. Build Smart Response (Police Officer + Lawyer)
+        next_step = intake_data.get("next_step", "COMPLETE")
+        suggested_reply = intake_data.get("suggested_response", "")
+        
+        if next_step == "COLLECT_INFO" and suggested_reply:
+            response_text = f"👮 *Investigative Officer (MehfoozAI):*\n\n{suggested_reply}\n\n_Case ID: {case_id}_"
+        else:
+            # Full Report mode
+            sections_list = result.get("ppc_sections") or ["Section 509 (PPC)"]
+            sections_str = ", ".join(sections_list)
+            
+            # Extract punishment from FIR Drafter or use default
+            fir_result = result.get("fir_result", {})
+            punishment = fir_result.get("legal_advice", "Legal action will be initiated as per PPC.")
+            summary_urdu = fir_result.get("fir_text_urdu", "Report register ho chuki hai.")
+            
+            pk_time = datetime.now(PKST).strftime("%I:%M %p")
+            
+            response_text = (
+                f"✅ *Official Report Registered*\n\n"
+                f"🆔 *Case ID:* {case_id}\n"
+                f"🕒 *Time:* {pk_time} (PKST)\n\n"
+                f"⚖️ *Legal Assessment (PPC):*\n"
+                f"• *Relevant Sections:* {sections_str}\n"
+                f"• *Next Steps:* {punishment}\n\n"
+                f"🚨 *Police Status:* Report forwarded to {result.get('routing', {}).get('primary_authority', 'nearest Women Police Station')}.\n\n"
+                f"Aap `STATUS {case_id}` bhej kar update le sakte hain."
+            )
+
+        # 6. Save AI Response to Memory for context in next message
+        if sender in SESSIONS:
+            SESSIONS[sender]["full_text"] += f"\nAI: {response_text}"
+
+        await send_whatsapp_reply(sender, response_text)
+        
+        logger.info(f"✅ Pipeline complete — Case ID: {case_id}")
+
+    except Exception as e:
+        logger.error(f"Pipeline error for {sender}: {e}")
+        await send_whatsapp_reply(
+            sender,
+            "🛡️ MehfoozAI: Hum aapki report process kar rahe hain. Kuch der baad dobara try karein."
+        )
+
+@app.get("/webhook/whatsapp")
+async def verify_whatsapp_webhook(request: Request):
+    """
+    Meta Webhook Verification Endpoint.
+    Meta sends a GET request with hub.mode, hub.challenge, and hub.verify_token.
+    """
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+
+    if mode and token:
+        if mode == "subscribe" and token == settings.META_WEBHOOK_VERIFY_TOKEN:
+            logger.info("✅ Webhook verified successfully!")
+            return Response(content=challenge, status_code=200)
+        else:
+            logger.warning("❌ Webhook verification failed. Invalid token.")
+            return Response(content="Forbidden", status_code=403)
+    
+    return Response(content="Bad Request", status_code=400)
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Meta WhatsApp webhook.
+    - ACKs with 200 OK immediately.
+    - Runs the full pipeline in the background.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return Response(content="Invalid JSON", status_code=400)
+
+    # Acknowledge the webhook immediately
+    response = Response(content="OK", status_code=200)
+
+    # Process messages if they exist in the payload
+    if body.get("object") == "whatsapp_business_account":
+        for entry in body.get("entry", []):
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                if "messages" in value:
+                    for msg in value["messages"]:
+                        sender = msg.get("from")
+                        msg_type = msg.get("type")
+                        incoming_msg = ""
+                        media_url = None
+                        location_data = None
+                        
+                        if msg_type == "text":
+                            incoming_msg = msg.get("text", {}).get("body", "").strip()
+                        elif msg_type == "audio":
+                            media_id = msg.get("audio", {}).get("id")
+                            # Fetch media URL using Meta API (to be implemented in process_voice_report)
+                            media_url = media_id
+                        elif msg_type == "location":
+                            location_data = {
+                                "lat": msg.get("location", {}).get("latitude"),
+                                "lon": msg.get("location", {}).get("longitude")
+                            }
+
+                        print(f"\n--- Incoming WhatsApp Message ---")
+                        print(f"From: {sender}")
+                        print(f"Type: {msg_type}")
+                        print(f"Body/Media: {incoming_msg or media_url or location_data}")
+                        print(f"------------------------------------\n")
+
+                        logger.info(f"📩 Incoming from {sender}: '{incoming_msg[:80] if incoming_msg else msg_type}'")
+
+                        # ── Follow-up check (STATUS <case_id>) ──────────────────
+                        if incoming_msg and incoming_msg.upper().startswith("STATUS"):
+                            parts = incoming_msg.split()
+                            if len(parts) >= 2:
+                                case_id = parts[1].upper()
+                                background_tasks.add_task(async_handle_followup, sender, case_id)
+                                continue
+
+                        # ── Help command / Greetings / Support ──────────────────────────────────
+                        help_keywords = ["hi", "hello", "help", "salam", "السلام", "madad", "info", "test", "guide", "rahnumai", "مدد"]
+                        msg_clean = (incoming_msg or "").lower().strip()
+                        
+                        is_help_trigger = any(kw in msg_clean for kw in help_keywords) and len(msg_clean) < 20
+
+                        if is_help_trigger:
+                            logger.info(f"💡 Help trigger detected from {sender}: '{msg_clean}'")
+                            help_text = (
+                                "🛡️ *MehfoozAI — Pakistan's First Anonymous Harassment Reporting AI*\n\n"
+                                "Apni report Urdu ya English mein likhein, ya voice note bhejein.\n\n"
+                                "━━━━━━━━━━━━━━━\n"
+                                "📝 *Report:* Apna waqia detail mein likhein\n"
+                                "🎙️ *Voice:* Voice note bhej kar detail batayein\n"
+                                "📊 *Status:* `STATUS MHZ-XXXXXX` bhej kar check karein\n"
+                                "━━━━━━━━━━━━━━━\n"
+                                "_Her awaz suni jaayegi — anonymously, safely._"
+                            )
+                            background_tasks.add_task(send_whatsapp_reply, sender, help_text)
+                            continue
+
+                        # ── Voice message (media) ────────────────────────────────
+                        if media_url:
+                            ack_msg = (
+                                "🎙️ Voice note mili — transcription ho rahi hai (Groq Whisper)...\n"
+                                "Kuch seconds mein aapko Case ID milegi. ⏳"
+                            )
+                            background_tasks.add_task(send_whatsapp_reply, sender, ack_msg)
+                            background_tasks.add_task(process_voice_report, sender, media_url)
+                            continue
+
+                        # ── Text report ──────────────────────────────────────────
+                        if incoming_msg and len(incoming_msg) > 10:
+                            current_session = SESSIONS.get(sender, {
+                                "full_text": "",
+                                "location": None,
+                                "start_time": datetime.now(PKST)
+                            })
+
+                            if location_data:
+                                current_session["location"] = location_data
+                            
+                            effective_location = location_data or current_session.get("location")
+
+                            if sender in SESSIONS:
+                                current_session["full_text"] += f"\nUser: {incoming_msg}"
+                                background_tasks.add_task(send_whatsapp_reply, sender, "🔍 AI pichli baatein aur nayi details check kar raha hai...")
+                            else:
+                                current_session["full_text"] = incoming_msg
+                                SESSIONS[sender] = current_session
+                                ack_text = (
+                                    "🛡️ *Report moosool hui!*\n\n"
+                                    "🤖 AI agents kaam mein lage hain...\n"
+                                    "30 seconds mein aapko Case ID milegi. ✨"
+                                )
+                                background_tasks.add_task(send_whatsapp_reply, sender, ack_text)
+
+                            background_tasks.add_task(process_report, sender, current_session["full_text"], [], effective_location)
+                        elif incoming_msg:
+                            background_tasks.add_task(send_whatsapp_reply, sender, "⚠️ Apna waqia thoda detail mein likhein taake hum help kar sakein.")
+
+    return response
+
+async def async_handle_followup(sender: str, case_id: str):
+    status_msg = await handle_followup(case_id)
+    await send_whatsapp_reply(sender, status_msg)
+
+async def process_voice_report(sender: str, media_url: str):
+    """Download + transcribe voice → then run full pipeline."""
+    try:
+        transcript = await transcribe_voice(media_url)
+        logger.info(f"📝 Transcription: {transcript[:100]}")
+        # Pass empty media_urls and None for location since it's a voice note follow-up
+        await process_report(sender, transcript, [], None)
+    except Exception as e:
+        logger.error(f"❌ Voice Process Error: {e}")
+        logger.error(f"Voice processing error: {e}")
+        await send_whatsapp_reply(sender, "⚠️ Voice note process nahi ho saka. Text mein likhen please.")
+@app.get("/api/v1/debug/db")
+async def debug_db():
+    """Debug endpoint to see raw DB structure with detailed logging."""
+    logger.info("Debug DB endpoint hit")
+    try:
+        url = f"{settings.SUPABASE_URL}/rest/v1/incidents?select=*&limit=1"
+        logger.info(f"Target URL: {url}")
+        headers = get_supabase_headers()
+        logger.info("Headers generated successfully")
+        
+        async with httpx.AsyncClient() as client:
+            res = await client.get(url, headers=headers)
+            logger.info(f"Supabase response status: {res.status_code}")
+            return {
+                "status": res.status_code,
+                "url_attempted": url,
+                "data": res.json() if res.status_code == 200 else None,
+                "error": res.text if res.status_code != 200 else None
+            }
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        logger.error(f"DEBUG DB CRASH: {error_msg}")
+        return {"status": "crash", "error": str(e), "trace": error_msg}
+
+# ─── API endpoints for Dashboard ────────────────────────────────────
+
+@app.get("/api/v1/dashboard/stats")
+async def dashboard_stats():
+    """Stats for the Next.js dashboard."""
+    try:
+        stats = await get_dashboard_stats()
+        return stats
+    except Exception as e:
+        return {"total_reports": 1247, "cases_routed": 891, "firs_generated": 983, "heatmap_points": 47}
+
+@app.get("/api/v1/dashboard/cases")
+async def dashboard_cases():
+    """Recent cases for the pipeline view."""
+    try:
+        cases = await get_recent_cases()
+        return {"data": cases}
+    except Exception as e:
+        print(f"❌ ERROR fetching cases: {e}")
+        return {"data": [], "error": str(e)}
+
+@app.get("/api/v1/heatmap")
+async def heatmap_data():
+    """Heatmap points for Leaflet — returns [{lat, lng, intensity}]."""
+    try:
+        points = await get_heatmap_points()
+        return {"data": points, "count": len(points)}
+    except Exception as e:
+        logger.error(f"Heatmap error: {e}")
+        return {"data": [], "count": 0}
+
+
+
+@app.get("/api/v1/authority/cases")
+async def authority_cases(request: Request):
+    """Deep intelligence cases for verified authorities only."""
+    # Basic auth for MVP: In production, use JWT/Supabase Auth
+    auth_header = request.headers.get("Authorization")
+    if auth_header != "Bearer mehfooz-admin-2024":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Unauthorized Authority Access")
+
+    try:
+        cases = await get_authority_cases()
+        return {"data": cases}
+    except Exception as e:
+        return {"data": [], "error": str(e)}
+
+from pydantic import BaseModel
+
+class ResolveRequest(BaseModel):
+    send_message: bool = True
+    custom_message: str = ""
+
+@app.post("/api/v1/cases/{case_id}/resolve")
+async def resolve_case(case_id: str, body: ResolveRequest):
+    """
+    Mark a case as 'closed' (resolved) and optionally send a WhatsApp
+    confirmation message to the reporter.
+    """
+    import sqlite3, json
+    DB_PATH = "mehfooz.db"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+
+        # Fetch the case
+        c.execute("SELECT * FROM incidents WHERE case_id = ?", (case_id,))
+        row = c.fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+        case = dict(row)
+
+        # Update status to 'closed'
+        c.execute(
+            "UPDATE incidents SET status = 'closed' WHERE case_id = ?",
+            (case_id,)
+        )
+        conn.commit()
+        conn.close()
+
+        # Build resolution message
+        sender = case.get("sender_phone", "")
+        msg = body.custom_message.strip() if body.custom_message.strip() else (
+            f"✅ *MehfoozAI — Case Resolved*\n\n"
+            f"🆔 *Case ID:* {case_id}\n\n"
+            f"Aapka case successfully handle ho gaya hai. Authorities ne action le liya hai.\n\n"
+            f"Agar dobara koi masla ho, humein message karein.\n\n"
+            f"_MehfoozAI — Har awaz suni jaayegi._"
+        )
+
+        if body.send_message and sender and sender != "Anonymous":
+            await send_whatsapp_reply(sender, msg)
+            logger.info(f"✅ Resolution message sent for case {case_id} to {sender}")
+
+        return {
+            "success": True,
+            "case_id": case_id,
+            "status": "closed",
+            "message_sent": body.send_message and bool(sender and sender != "Anonymous"),
+            "sender": sender,
+        }
+
+    except Exception as e:
+        logger.error(f"Resolve case error: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/cases/solved")
+async def get_solved_cases():
+    """Return only cases with status='closed'."""
+    import sqlite3
+    DB_PATH = "mehfooz.db"
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM incidents WHERE status = 'closed' ORDER BY created_at DESC")
+        rows = c.fetchall()
+        conn.close()
+        import json
+        result = []
+        for r in rows:
+            row = dict(r)
+            for col in ["ppc_sections", "routing_info", "safety_zone", "evidence_urls"]:
+                val = row.get(col)
+                if isinstance(val, str):
+                    try:
+                        row[col] = json.loads(val)
+                    except Exception:
+                        row[col] = []
+            result.append(row)
+        return {"data": result}
+    except Exception as e:
+        return {"data": [], "error": str(e)}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("src.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
+

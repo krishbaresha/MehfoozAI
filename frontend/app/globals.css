@@ -1,0 +1,203 @@
+@import "leaflet/dist/leaflet.css";
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #050714;
+  /* New MehfoozAI Theme */
+  --midnight: #0b0f1a;
+  --deep: #111827;
+  --surface: #1a2236;
+  --surface2: #212d45;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --rose: #e8637a;
+  --rose-light: #f28fa0;
+  --rose-dim: rgba(232,99,122,0.15);
+  --amber: #f5a623;
+  --amber-dim: rgba(245,166,35,0.15);
+  --teal: #2dd4bf;
+  --teal-dim: rgba(45,212,191,0.12);
+  --lavender: #a78bfa;
+  --lavender-dim: rgba(167,139,250,0.12);
+  --text: #f0f4ff;
+  --text2: #8b9bb4;
+  --text3: #4a5568;
+  --green: #34d399;
+  --green-dim: rgba(52,211,153,0.12);
+  --red: #f87171;
+  
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  /* Keep legacy variables temporarily mapped to new ones if needed */
+  --bg-primary: var(--midnight);
+  --bg-secondary: var(--surface);
+  --text-primary: var(--text);
+  --text-secondary: var(--text2);
+  --text-muted: var(--text3);
+  --accent-primary: var(--rose);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--midnight);
+  color: var(--text);
+  font-family: var(--font-body);
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ─────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(244,63,94,0.4); border-radius: 99px; }
+
+/* ── Glass Card ───────────────── */
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: all 0.25s ease;
+}
+.glass-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+}
+
+/* ── Animations ───────────────── */
+@keyframes fadeUp   { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+@keyframes pulse    { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+@keyframes dotBlink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+.anim-fadeup { animation: fadeUp 0.4s ease forwards; }
+
+.nav-btn { transition: background 0.15s, color 0.15s; }
+.nav-btn:hover { background: rgba(255,255,255,0.04) !important; }
+.row-hover { transition: background 0.15s; cursor: pointer; }
+.row-hover:hover { background: rgba(255,255,255,0.025) !important; }
+.stat-card { transition: transform 0.2s, box-shadow 0.2s; cursor: default; }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 36px rgba(0,0,0,0.45); }
+.pill-btn { transition: all 0.15s; }
+
+/* ── Stat Card Glow ───────────── */
+.glow-rose { box-shadow: 0 0 30px var(--glow-rose); }
+.glow-purple { box-shadow: 0 0 30px var(--glow-purple); }
+.glow-blue { box-shadow: 0 0 30px var(--glow-blue); }
+.glow-emerald { box-shadow: 0 0 30px rgba(16,185,129,0.25); }
+
+/* ── Gradient Text ────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-blue {
+  background: linear-gradient(135deg, #3b82f6, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Badge ────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.badge-pending {
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.3);
+}
+.badge-drafted {
+  background: rgba(59,130,246,0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59,130,246,0.3);
+}
+.badge-routed {
+  background: rgba(16,185,129,0.15);
+  color: #10b981;
+  border: 1px solid rgba(16,185,129,0.3);
+}
+.badge-closed {
+  background: rgba(168,85,247,0.15);
+  color: #a855f7;
+  border: 1px solid rgba(168,85,247,0.3);
+}
+
+/* ── Pulse animation ──────────── */
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.5; }
+}
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  animation: pulse-dot 2s infinite;
+}
+
+/* ── Fade-in animation ────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.5s ease forwards; }
+
+/* ── Leaflet overrides ────────── */
+.leaflet-container {
+  background: #0b0f1e !important;
+  border-radius: 14px;
+}
+.leaflet-tile-pane { filter: brightness(0.6) saturate(0.4); }
+.leaflet-control-attribution { display: none !important; }
+.leaflet-control-zoom a {
+  background: rgba(255,255,255,0.06) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* ── Sidebar nav ──────────────── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+.nav-item:hover, .nav-item.active {
+  background: rgba(244,63,94,0.12);
+  color: #f43f5e;
+}
+
+/* ── Progress bar ─────────────── */
+.progress-bar {
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.8s ease;
+}
