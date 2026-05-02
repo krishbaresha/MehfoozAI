@@ -27,17 +27,19 @@ app = FastAPI(
     description="AI-powered anonymous harassment reporting platform for Pakistan",
 )
 
-# Update origins for production (Vercel)
+# Update origins for production
 origins = [
     "http://localhost:3000",
+    "http://localhost:3001",
     "http://localhost:8000",
-    "https://mehfooz-ai.vercel.app", # Potential production URL
+    "https://mehfooz-ai.vercel.app",
+    "https://mehfoozai.netlify.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex="https://.*\.vercel\.app", # Allow all vercel subdomains
+    allow_origin_regex="https://.*\.vercel\.app|https://.*\.netlify\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
