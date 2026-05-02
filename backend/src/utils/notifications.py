@@ -32,7 +32,12 @@ async def send_whatsapp_reply(to_number: str, message: str):
     """
     if _meta_configured():
         clean_number = to_number.replace("whatsapp:", "").replace("+", "")
+        # Mask the token for logs but check if it's there
+        token_preview = f"{settings.META_ACCESS_TOKEN.get_secret_value()[:10]}..." if settings.META_ACCESS_TOKEN else "MISSING"
         url = f"https://graph.facebook.com/v21.0/{settings.META_PHONE_NUMBER_ID}/messages"
+        
+        logger.info(f"🔗 Meta Request: URL={url} | Phone={clean_number} | Token={token_preview}")
+
         headers = {
             "Authorization": f"Bearer {settings.META_ACCESS_TOKEN.get_secret_value()}",
             "Content-Type": "application/json",
@@ -48,27 +53,28 @@ async def send_whatsapp_reply(to_number: str, message: str):
         import requests
         session = requests.Session()
         
-        for attempt in range(2):
+        for attempt in range(1, 4): # Try 3 times
             try:
-                logger.info(f"📤 [Attempt {attempt+1}] Sending to {clean_number}...")
-                response = session.post(url, headers=headers, json=data, timeout=25)
+                logger.info(f"📤 [Attempt {attempt}] Sending to {clean_number}...")
+                response = session.post(url, headers=headers, json=data, timeout=15)
                 
                 if response.status_code in (200, 201, 202):
                     logger.info(f"✅ WhatsApp reply SUCCESS for {clean_number}")
                     return
                 
                 logger.error(f"❌ Meta API Error {response.status_code}: {response.text}")
-                if response.status_code == 401:
-                    logger.error("🛑 Token is INVALID or EXPIRED. Please check META_ACCESS_TOKEN.")
+                if response.status_code in (401, 403):
+                    logger.error("🛑 Auth Error. Check Token/Permissions.")
                     return
-                break # Don't retry on 400/403/etc
+                # On 500 or 429, we might want to retry
                 
             except requests.exceptions.Timeout:
-                logger.warning(f"⏳ Timeout on attempt {attempt+1}. Retrying...")
-                continue
+                logger.warning(f"⏳ Timeout on attempt {attempt} (15s). Retrying...")
             except Exception as e:
-                logger.error(f"💥 Connection Error: {type(e).__name__} - {str(e)}")
-                break
+                logger.error(f"💥 Connection Error on attempt {attempt}: {type(e).__name__} - {str(e)}")
+            
+            import time
+            time.sleep(1) # Small gap between retries
 
     else:
         logger.error("❌ Meta API not configured. Check META_ACCESS_TOKEN and META_PHONE_NUMBER_ID in .env")
