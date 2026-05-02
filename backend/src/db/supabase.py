@@ -97,7 +97,8 @@ async def save_incident(case_id, transcription, details, fir_draft, ppc_sections
     lat = details.get("latitude")
     lng = details.get("longitude")
     credibility = details.get("credibility_score", 75)
-    is_emergency = 1 if details.get("is_emergency") else 0
+    is_emergency = bool(details.get("is_emergency", False))
+    is_verified = bool(details.get("is_verified", False))
     location_name = details.get("location") or details.get("location_name")
     complainant_name = details.get("complainant_name") or "Anonymous Source"
     complainant_cnic = details.get("complainant_cnic")
@@ -116,17 +117,18 @@ async def save_incident(case_id, transcription, details, fir_draft, ppc_sections
         "location_name": location_name,
         "latitude": lat,
         "longitude": lng,
-        "ppc_sections": json.dumps(ppc_sections),
+        "ppc_sections": ppc_sections,
         "fir_draft": fir_draft,
-        "routing_info": json.dumps(routing),
-        "safety_zone": json.dumps(safety),
+        "routing_info": routing,
+        "safety_zone": safety,
         "sender_phone": details.get("sender_phone"),
-        "evidence_urls": json.dumps(details.get("evidence_urls", [])),
+        "evidence_urls": details.get("evidence_urls", []),
         "credibility_score": credibility,
         "is_emergency": is_emergency,
+        "is_verified": is_verified,
         "complainant_name": complainant_name,
         "complainant_cnic": complainant_cnic,
-        "perpetrator_data": json.dumps(perp_data),
+        "perpetrator_data": perp_data,
         "summary": summary
     }
 
@@ -149,17 +151,17 @@ async def save_incident(case_id, transcription, details, fir_draft, ppc_sections
         c.execute('''INSERT OR IGNORE INTO incidents 
             (id, case_id, description, transcription, category, status, location_name,
              latitude, longitude, ppc_sections, fir_draft, routing_info, safety_zone,
-             sender_phone, evidence_urls, credibility_score, is_emergency,
+             sender_phone, evidence_urls, credibility_score, is_emergency, is_verified,
              complainant_name, complainant_cnic, perpetrator_data, summary)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (incident_data["id"], incident_data["case_id"], incident_data["description"], 
              incident_data["transcription"], incident_data["category"], incident_data["status"],
              incident_data["location_name"], incident_data["latitude"], incident_data["longitude"],
-             incident_data["ppc_sections"], incident_data["fir_draft"], incident_data["routing_info"],
-             incident_data["safety_zone"], incident_data["sender_phone"], incident_data["evidence_urls"],
-             incident_data["credibility_score"], incident_data["is_emergency"],
+             json.dumps(incident_data["ppc_sections"]), incident_data["fir_draft"], json.dumps(incident_data["routing_info"]),
+             json.dumps(incident_data["safety_zone"]), incident_data["sender_phone"], json.dumps(incident_data["evidence_urls"]),
+             incident_data["credibility_score"], incident_data["is_emergency"], incident_data["is_verified"],
              incident_data["complainant_name"], incident_data["complainant_cnic"], 
-             incident_data["perpetrator_data"], incident_data["summary"]))
+             json.dumps(incident_data["perpetrator_data"]), incident_data["summary"]))
         conn.commit()
         if lat and lng:
             await update_heatmap_with_coords(lat, lng, location_name or "", 1)

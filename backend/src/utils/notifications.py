@@ -43,18 +43,25 @@ async def send_whatsapp_reply(to_number: str, message: str):
             "type": "text",
             "text": {"body": message}
         }
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(url, headers=headers, json=data)
-                if response.status_code in (200, 201, 202):
-                    logger.info(f"✅ WhatsApp reply sent via Meta to {clean_number}")
-                    return
-                elif response.status_code == 401:
-                    logger.error(f"❌ Meta Error 401 Unauthorized — The META_ACCESS_TOKEN in .env has likely expired or is invalid.")
-                else:
-                    logger.warning(f"⚠️ Meta API failed ({response.status_code}): {response.text}")
-        except Exception as e:
-            logger.error(f"❌ Meta API error: {e}")
+        for attempt in range(2):  # Try twice
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(url, headers=headers, json=data)
+                    if response.status_code in (200, 201, 202):
+                        logger.info(f"✅ WhatsApp reply sent via Meta to {clean_number}")
+                        return
+                    elif response.status_code == 401:
+                        logger.error(f"❌ Meta Error 401 Unauthorized — The META_ACCESS_TOKEN in .env has likely expired or is invalid.")
+                        return
+                    else:
+                        logger.warning(f"⚠️ Meta API failed ({response.status_code}): {response.text}")
+                        return
+            except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout) as e:
+                logger.warning(f"⏳ Meta API Timeout (Attempt {attempt+1}): {e}. Retrying...")
+                continue
+            except Exception as e:
+                logger.error(f"❌ Meta API Connection Error: {type(e).__name__} - {str(e)}")
+                return
     else:
         logger.error("❌ Meta API not configured. Check META_ACCESS_TOKEN and META_PHONE_NUMBER_ID in .env")
 

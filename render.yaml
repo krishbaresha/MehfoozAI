@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: mehfooz-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+    rootDirectory: backend
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: NODE_ENV
+        fromEnvVar: NODE_ENV
+      - key: GROQ_API_KEY
+        fromEnvVar: GROQ_API_KEY
+      - key: SUPABASE_URL
+        fromEnvVar: SUPABASE_URL
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        fromEnvVar: SUPABASE_SERVICE_ROLE_KEY
+      - key: META_ACCESS_TOKEN
+        fromEnvVar: META_ACCESS_TOKEN
+      - key: META_PHONE_NUMBER_ID
+        fromEnvVar: META_PHONE_NUMBER_ID
+      - key: META_WEBHOOK_VERIFY_TOKEN
+        fromEnvVar: META_WEBHOOK_VERIFY_TOKEN
+      - key: RESEND_API_KEY
+        fromEnvVar: RESEND_API_KEY
+      - key: SECRET_KEY
+        fromEnvVar: SECRET_KEY
+      - key: ENCRYPTION_KEY
+        fromEnvVar: ENCRYPTION_KEY
