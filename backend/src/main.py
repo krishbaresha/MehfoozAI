@@ -34,12 +34,14 @@ origins = [
     "http://localhost:8000",
     "https://mehfooz-ai.vercel.app",
     "https://mehfoozai.netlify.app",
+    "https://mahfoozai.netlify.app",
+    "https://mahfooz-backend.onrender.com",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex="https://.*\.vercel\.app|https://.*\.netlify\.app",
+    allow_origin_regex="https://.*\.vercel\.app|https://.*\.netlify\.app|https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -407,34 +409,51 @@ class ResolveRequest(BaseModel):
 @app.post("/api/v1/cases/{case_id}/resolve")
 async def resolve_case(case_id: str, body: ResolveRequest):
     """
-    Mark a case as 'closed' (resolved) and optionally send a WhatsApp
+    Mark a case as 'closed' (resolved) in Supabase/SQLite and optionally send a WhatsApp
     confirmation message to the reporter.
     """
     import sqlite3, json
+    from src.db.supabase_client import supabase
     DB_PATH = "mehfooz.db"
+    
     try:
+        # 1. Update Supabase (Production)
+        if supabase:
+            try:
+                res = supabase.table("incidents").update({"status": "closed"}).eq("case_id", case_id).execute()
+                logger.info(f"✅ Supabase Case {case_id} marked as closed")
+            except Exception as sb_err:
+                logger.error(f"❌ Supabase Resolve Error: {sb_err}")
+
+        # 2. Update SQLite (Local/Fallback)
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
 
-        # Fetch the case
+        # Fetch the case for details
         c.execute("SELECT * FROM incidents WHERE case_id = ?", (case_id,))
         row = c.fetchone()
         if not row:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+            # Try fetching from Supabase if not in SQLite
+            if supabase:
+                sb_case = supabase.table("incidents").select("*").eq("case_id", case_id).execute()
+                if sb_case.data:
+                    case = sb_case.data[0]
+                else:
+                    from fastapi import HTTPException
+                    raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+            else:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+        else:
+            case = dict(row)
 
-        case = dict(row)
-
-        # Update status to 'closed'
-        c.execute(
-            "UPDATE incidents SET status = 'closed' WHERE case_id = ?",
-            (case_id,)
-        )
+        # Update SQLite status
+        c.execute("UPDATE incidents SET status = 'closed' WHERE case_id = ?", (case_id,))
         conn.commit()
         conn.close()
 
-        # Build resolution message
+        # 3. Build & Send WhatsApp Resolution Message
         sender = case.get("sender_phone", "")
         msg = body.custom_message.strip() if body.custom_message.strip() else (
             f"✅ *MehfoozAI — Case Resolved*\n\n"
@@ -448,36 +467,39 @@ async def resolve_case(case_id: str, body: ResolveRequest):
             await send_whatsapp_reply(sender, msg)
             logger.info(f"✅ Resolution message sent for case {case_id} to {sender}")
 
-        return {
-            "success": True,
-            "case_id": case_id,
-            "status": "closed",
-            "message_sent": body.send_message and bool(sender and sender != "Anonymous"),
-            "sender": sender,
-        }
+        return {"status": "success", "case_id": case_id, "message": "Case resolved successfully"}
 
     except Exception as e:
-        logger.error(f"Resolve case error: {e}")
+        logger.error(f"❌ Resolve Error: {e}")
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/api/v1/cases/solved")
 async def get_solved_cases():
-    """Return only cases with status='closed'."""
+    """Return only cases with status='closed' from Supabase/SQLite."""
+    from src.db.supabase_client import supabase, get_recent_cases
     import sqlite3
     DB_PATH = "mehfooz.db"
+    
     try:
+        # 1. Try Supabase
+        if supabase:
+            try:
+                res = supabase.table("incidents").select("*").eq("status", "closed").order("created_at", desc=True).execute()
+                return {"data": res.data or []}
+            except Exception as sb_err:
+                logger.error(f"❌ Supabase Solved Error: {sb_err}")
+
+        # 2. Fallback to SQLite
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.execute("SELECT * FROM incidents WHERE status = 'closed' ORDER BY created_at DESC")
-        rows = c.fetchall()
+        rows = [dict(r) for r in c.fetchall()]
         conn.close()
+        
         import json
-        result = []
-        for r in rows:
-            row = dict(r)
+        for row in rows:
             for col in ["ppc_sections", "routing_info", "safety_zone", "evidence_urls"]:
                 val = row.get(col)
                 if isinstance(val, str):
@@ -485,11 +507,9 @@ async def get_solved_cases():
                         row[col] = json.loads(val)
                     except Exception:
                         row[col] = []
-            result.append(row)
-        return {"data": result}
+        return {"data": rows}
     except Exception as e:
         return {"data": [], "error": str(e)}
-
 
 if __name__ == "__main__":
     import uvicorn
