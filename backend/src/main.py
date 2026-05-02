@@ -216,18 +216,21 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Meta WhatsApp webhook.
     - ACKs with 200 OK immediately.
-    - Runs the full pipeline in the background.
+    - Offloads all processing to avoid Meta retries.
     """
     try:
         body = await request.json()
-    except Exception:
-        return Response(content="Invalid JSON", status_code=400)
+        if body.get("object") == "whatsapp_business_account":
+            # Process in background to prevent timeout
+            background_tasks.add_task(handle_meta_webhook_payload, body, background_tasks)
+        return Response(content="OK", status_code=200)
+    except Exception as e:
+        logger.error(f"💥 Webhook Root Error: {str(e)}")
+        return Response(content="OK", status_code=200) # Always ACK to Meta
 
-    # Acknowledge the webhook immediately
-    response = Response(content="OK", status_code=200)
-
-    # Process messages if they exist in the payload
-    if body.get("object") == "whatsapp_business_account":
+async def handle_meta_webhook_payload(body: dict, background_tasks: BackgroundTasks):
+    """Full background processor for Meta payloads."""
+    try:
         for entry in body.get("entry", []):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
@@ -242,39 +245,27 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
                         if msg_type == "text":
                             incoming_msg = msg.get("text", {}).get("body", "").strip()
                         elif msg_type == "audio":
-                            media_id = msg.get("audio", {}).get("id")
-                            # Fetch media URL using Meta API (to be implemented in process_voice_report)
-                            media_url = media_id
+                            media_url = msg.get("audio", {}).get("id")
                         elif msg_type == "location":
                             location_data = {
                                 "lat": msg.get("location", {}).get("latitude"),
                                 "lon": msg.get("location", {}).get("longitude")
                             }
 
-                        print(f"\n--- Incoming WhatsApp Message ---")
-                        print(f"From: {sender}")
-                        print(f"Type: {msg_type}")
-                        print(f"Body/Media: {incoming_msg or media_url or location_data}")
-                        print(f"------------------------------------\n")
+                        logger.info(f"📩 Background Processing: {sender} -> {msg_type}")
 
-                        logger.info(f"📩 Incoming from {sender}: '{incoming_msg[:80] if incoming_msg else msg_type}'")
-
-                        # ── Follow-up check (STATUS <case_id>) ──────────────────
+                        # 1. Status Check
                         if incoming_msg and incoming_msg.upper().startswith("STATUS"):
                             parts = incoming_msg.split()
-                            if len(parts) >= 2:
-                                case_id = parts[1].upper()
-                                background_tasks.add_task(async_handle_followup, sender, case_id)
-                                continue
+                            case_id = parts[1].upper() if len(parts) >= 2 else ""
+                            if case_id:
+                                await async_handle_followup(sender, case_id)
+                            continue
 
-                        # ── Help command / Greetings / Support ──────────────────────────────────
+                        # 2. Help/Greet
                         help_keywords = ["hi", "hello", "help", "salam", "السلام", "madad", "info", "test", "guide", "rahnumai", "مدد"]
                         msg_clean = (incoming_msg or "").lower().strip()
-                        
-                        is_help_trigger = any(kw in msg_clean for kw in help_keywords) and len(msg_clean) < 20
-
-                        if is_help_trigger:
-                            logger.info(f"💡 Help trigger detected from {sender}: '{msg_clean}'")
+                        if any(kw in msg_clean for kw in help_keywords) and len(msg_clean) < 20:
                             help_text = (
                                 "🛡️ *MehfoozAI — Pakistan's First Anonymous Harassment Reporting AI*\n\n"
                                 "Apni report Urdu ya English mein likhein, ya voice note bhejein.\n\n"
@@ -285,50 +276,21 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
                                 "━━━━━━━━━━━━━━━\n"
                                 "_Her awaz suni jaayegi — anonymously, safely._"
                             )
-                            background_tasks.add_task(send_whatsapp_reply, sender, help_text)
+                            await send_whatsapp_reply(sender, help_text)
                             continue
 
-                        # ── Voice message (media) ────────────────────────────────
+                        # 3. Report Processing
                         if media_url:
-                            ack_msg = (
-                                "🎙️ Voice note mili — transcription ho rahi hai (Groq Whisper)...\n"
-                                "Kuch seconds mein aapko Case ID milegi. ⏳"
-                            )
-                            background_tasks.add_task(send_whatsapp_reply, sender, ack_msg)
-                            background_tasks.add_task(process_voice_report, sender, media_url)
-                            continue
-
-                        # ── Text report ──────────────────────────────────────────
-                        if incoming_msg and len(incoming_msg) > 10:
-                            current_session = SESSIONS.get(sender, {
-                                "full_text": "",
-                                "location": None,
-                                "start_time": datetime.now(PKST)
-                            })
-
-                            if location_data:
-                                current_session["location"] = location_data
-                            
-                            effective_location = location_data or current_session.get("location")
-
-                            if sender in SESSIONS:
-                                current_session["full_text"] += f"\nUser: {incoming_msg}"
-                                background_tasks.add_task(send_whatsapp_reply, sender, "🔍 AI pichli baatein aur nayi details check kar raha hai...")
-                            else:
-                                current_session["full_text"] = incoming_msg
-                                SESSIONS[sender] = current_session
-                                ack_text = (
-                                    "🛡️ *Report moosool hui!*\n\n"
-                                    "🤖 AI agents kaam mein lage hain...\n"
-                                    "30 seconds mein aapko Case ID milegi. ✨"
-                                )
-                                background_tasks.add_task(send_whatsapp_reply, sender, ack_text)
-
-                            background_tasks.add_task(process_report, sender, current_session["full_text"], [], effective_location)
+                            await send_whatsapp_reply(sender, "🎙️ Voice note mili — transcription ho rahi hai... ⏳")
+                            await process_voice_report(sender, media_url)
+                        elif incoming_msg and len(incoming_msg) > 10:
+                            await send_whatsapp_reply(sender, "🛡️ *Report moosool hui!* AI processing shuru ho gayi hai... ✨")
+                            await process_report(sender, incoming_msg, [], location_data)
                         elif incoming_msg:
-                            background_tasks.add_task(send_whatsapp_reply, sender, "⚠️ Apna waqia thoda detail mein likhein taake hum help kar sakein.")
+                            await send_whatsapp_reply(sender, "⚠️ Apna waqia thoda detail mein likhein taake hum help kar sakein.")
 
-    return response
+    except Exception as e:
+        logger.error(f"❌ Background Payload Error: {str(e)}")
 
 async def async_handle_followup(sender: str, case_id: str):
     status_msg = await handle_followup(case_id)

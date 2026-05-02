@@ -32,37 +32,44 @@ async def send_whatsapp_reply(to_number: str, message: str):
     """
     if _meta_configured():
         clean_number = to_number.replace("whatsapp:", "").replace("+", "")
-        url = f"https://graph.facebook.com/v19.0/{settings.META_PHONE_NUMBER_ID}/messages"
-        logger.info(f"📤 Attempting Meta API call to: {url.replace(settings.META_PHONE_NUMBER_ID, 'HIDDEN_ID')}")
+        url = f"https://graph.facebook.com/v21.0/{settings.META_PHONE_NUMBER_ID}/messages"
         headers = {
             "Authorization": f"Bearer {settings.META_ACCESS_TOKEN.get_secret_value()}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         data = {
             "messaging_product": "whatsapp",
+            "recipient_type": "individual",
             "to": clean_number,
             "type": "text",
             "text": {"body": message}
         }
+        
         import requests
-        for attempt in range(2):  # Try twice
+        session = requests.Session()
+        
+        for attempt in range(2):
             try:
-                response = requests.post(url, headers=headers, json=data, timeout=30)
+                logger.info(f"📤 [Attempt {attempt+1}] Sending to {clean_number}...")
+                response = session.post(url, headers=headers, json=data, timeout=25)
+                
                 if response.status_code in (200, 201, 202):
-                    logger.info(f"✅ WhatsApp reply sent via Meta to {clean_number}")
+                    logger.info(f"✅ WhatsApp reply SUCCESS for {clean_number}")
                     return
-                elif response.status_code == 401:
-                    logger.error(f"❌ Meta Error 401 Unauthorized — The META_ACCESS_TOKEN in .env has likely expired or is invalid.")
+                
+                logger.error(f"❌ Meta API Error {response.status_code}: {response.text}")
+                if response.status_code == 401:
+                    logger.error("🛑 Token is INVALID or EXPIRED. Please check META_ACCESS_TOKEN.")
                     return
-                else:
-                    logger.warning(f"⚠️ Meta API failed ({response.status_code}): {response.text}")
-                    return
+                break # Don't retry on 400/403/etc
+                
             except requests.exceptions.Timeout:
-                logger.warning(f"⏳ Meta API Timeout (Attempt {attempt+1}). Retrying...")
+                logger.warning(f"⏳ Timeout on attempt {attempt+1}. Retrying...")
                 continue
             except Exception as e:
-                logger.error(f"❌ Meta API Connection Error: {type(e).__name__} - {str(e)}")
-                return
+                logger.error(f"💥 Connection Error: {type(e).__name__} - {str(e)}")
+                break
+
     else:
         logger.error("❌ Meta API not configured. Check META_ACCESS_TOKEN and META_PHONE_NUMBER_ID in .env")
 
