@@ -33,6 +33,7 @@ async def send_whatsapp_reply(to_number: str, message: str):
     if _meta_configured():
         clean_number = to_number.replace("whatsapp:", "").replace("+", "")
         url = f"https://graph.facebook.com/v19.0/{settings.META_PHONE_NUMBER_ID}/messages"
+        logger.info(f"📤 Attempting Meta API call to: {url.replace(settings.META_PHONE_NUMBER_ID, 'HIDDEN_ID')}")
         headers = {
             "Authorization": f"Bearer {settings.META_ACCESS_TOKEN.get_secret_value()}",
             "Content-Type": "application/json"
@@ -45,7 +46,8 @@ async def send_whatsapp_reply(to_number: str, message: str):
         }
         for attempt in range(2):  # Try twice
             try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
+                # Use a fresh client for each attempt with a longer timeout
+                async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
                     response = await client.post(url, headers=headers, json=data)
                     if response.status_code in (200, 201, 202):
                         logger.info(f"✅ WhatsApp reply sent via Meta to {clean_number}")
