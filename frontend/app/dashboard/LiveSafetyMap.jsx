@@ -82,6 +82,14 @@ export default function LiveSafetyMap() {
   const [lastSync,   setLastSync]  = useState(null);
   const [isLoading,  setIsLoading] = useState(true);
   const [totalCases, setTotalCases]= useState(0);
+  const [isMobile,   setIsMobile]  = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   /* callback ref — fires when the div mounts/unmounts */
   const containerRef = useCallback((node) => {
@@ -304,13 +312,24 @@ export default function LiveSafetyMap() {
       : "--:--";
 
   return (
-    <div style={{ padding:"16px 26px 20px", display:"flex", flex:1, gap:14, overflow:"hidden" }}>
+    <div style={{ 
+      padding: isMobile ? "12px" : "16px 26px 20px", 
+      display: "flex", 
+      flexDirection: isMobile ? "column" : "row",
+      flex: 1, 
+      gap: 14, 
+      overflowY: isMobile ? "auto" : "hidden",
+      overflowX: "hidden"
+    }}>
 
       {/* ── MAP ─────────────────────────────────────────────────────────── */}
       <div style={{
-        flex:1, position:"relative", borderRadius:16,
+        flex: isMobile ? "none" : 1, 
+        height: isMobile ? 400 : "auto",
+        position:"relative", borderRadius:16,
         overflow:"hidden", border:`1px solid ${C.border}`,
         background:C.midnight,
+        minHeight: isMobile ? 400 : 0
       }}>
         {/* The div Leaflet mounts into — assigned via callback ref */}
         <div
@@ -370,7 +389,14 @@ export default function LiveSafetyMap() {
       </div>
 
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <div style={{ width:260, display:"flex", flexDirection:"column", gap:12, overflowY:"auto" }}>
+      <div style={{ 
+        width: isMobile ? "100%" : 260, 
+        display:"flex", 
+        flexDirection:"column", 
+        gap:12, 
+        overflowY: isMobile ? "visible" : "auto",
+        flexShrink: 0
+      }}>
 
         {/* Intensity legend */}
         <div style={{
