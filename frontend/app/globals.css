@@ -53,9 +53,19 @@ body {
 }
 
 /* ── Scrollbar ─────────────────── */
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(244,63,94,0.4); border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: rgba(232,99,122,0.3); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(232,99,122,0.5); }
+
+/* ── Grid Pattern ─────────────── */
+.intelligence-grid {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center;
+}
 
 /* ── Glass Card ───────────────── */
 .glass-card {

@@ -211,14 +211,20 @@ const TopBar = ({ title, subtitle, activeCount = 0 }) => (
         letterSpacing:"-0.025em", color:C.text, lineHeight:1.1 }}>{title}</h1>
       {subtitle && <p style={{ fontSize:12.5, color:C.text2, marginTop:4 }}>{subtitle}</p>}
     </div>
-    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 12px",
+    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 14px",
+        background:C.deep, borderRadius:20, border:`1px solid ${C.border}`,
+        boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+        <span style={{ width:6, height:6, borderRadius:"50%", background:C.teal, animation:"pulse 2s infinite" }} />
+        <span style={{ fontSize:10.5, color:C.teal, fontWeight:700, letterSpacing:"0.05em", textTransform:"uppercase" }}>Live Sync</span>
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px",
         background:C.roseDim, borderRadius:20, border:`1px solid rgba(232,99,122,0.22)` }}>
         <span style={{ width:6, height:6, borderRadius:"50%", background:C.rose, animation:"pulse 1.5s infinite" }} />
         <span style={{ fontSize:11.5, color:C.roseLight, fontWeight:500 }}>{activeCount} Active Alert{activeCount !== 1 ? 's' : ''}</span>
       </div>
       <div style={{ width:32, height:32, borderRadius:"50%", background:C.surface2,
-        display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+        display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", border:`1px solid ${C.border2}` }}>
         <Ico name="users" size={18} color={C.text2} />
       </div>
     </div>
@@ -258,20 +264,23 @@ const DashboardScreen = ({ apiData }) => {
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
         {stats.map((s, i) => (
-          <div key={i} className="stat-card anim-fadeup" style={{ background:C.surface, border:`1px solid ${C.border}`,
+          <div key={i} className="stat-card" style={{ background:C.surface, border:`1px solid ${C.border}`,
             borderRadius:16, padding:"18px 20px", position:"relative", overflow:"hidden",
-            animationDelay:`${i*0.07}s`, opacity:1 }}>
-            {/* Accent blob */}
-            <div style={{ position:"absolute", top:0, right:0, width:70, height:70,
-              borderRadius:"0 16px 0 70px", background:s.color, opacity:0.09 }} />
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+            opacity:0, transform:"translateY(20px)", animation:`fadeInUp 0.6s ease forwards ${i*0.1}s`,
+            boxShadow: `0 10px 30px -10px rgba(0,0,0,0.5), 0 0 20px ${s.color}05` }}>
+            {/* Accent glow */}
+            <div style={{ position:"absolute", top:"-20%", right:"-10%", width:100, height:100,
+              borderRadius:"50%", background:s.color, filter: "blur(40px)", opacity:0.12 }} />
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10, position:"relative", zIndex:1 }}>
               <span style={{ fontSize:10.5, color:C.text2, fontWeight:500,
                 letterSpacing:"0.05em", textTransform:"uppercase" }}>{s.label}</span>
-              <Ico name={s.icon} size={16} color={s.color} />
+              <div style={{ padding:8, background:`${s.color}11`, borderRadius:10 }}>
+                <Ico name={s.icon} size={16} color={s.color} />
+              </div>
             </div>
-            <div style={{ fontSize:30, fontWeight:700, fontFamily:"var(--font-display)",
-              color:C.text, lineHeight:1, marginBottom:6 }}>{s.value}</div>
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ fontSize:32, fontWeight:800, fontFamily:"var(--font-display)",
+              color:C.text, lineHeight:1, marginBottom:6, position:"relative", zIndex:1, letterSpacing:"-0.03em" }}>{s.value}</div>
+            <div style={{ display:"flex", alignItems:"center", gap:6, position:"relative", zIndex:1 }}>
               {s.trend && <span style={{ fontSize:10.5, color:C.green, fontWeight:600 }}>{s.trend}</span>}
               <span style={{ fontSize:11, color:C.text3 }}>{s.sub}</span>
             </div>
@@ -950,7 +959,7 @@ ${c.ppc.map(p => `  • ${p}`).join("\n")}
           <Card style={{ padding:"15px" }}>
             <div style={{ fontSize:12, fontWeight:600, color:C.text, marginBottom:12 }}>Verification & Evidence</div>
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              <div style={{ padding:"10px 12px", background:C.surface2, borderRadius:8, border:`1px solid ${C.border}` }}>
+            <div style={{ padding:"10px 12px", background:C.surface2, borderRadius:8, border:`1px solid ${C.border}` }}>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                       <span style={{ fontSize:10.5, color:C.text2 }}>AI Credibility</span>
                       <span style={{ fontSize:10.5, color: (c.credibility || 50) > 70 ? C.green : C.amber, fontWeight:700 }}>{c.credibility || 50}%</span>
@@ -1108,7 +1117,7 @@ const App = () => {
   const meta = META[screen];
 
   return (
-    <div style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden" }}>
+    <div className="intelligence-grid" style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden" }}>
       <Sidebar active={screen} setActive={handleNav} caseCount={apiData.cases.filter(c => c.status !== 'closed').length} />
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
         <TopBar title={meta.title} subtitle={meta.sub} activeCount={apiData.cases.filter(c => c.status !== 'closed').length} />
