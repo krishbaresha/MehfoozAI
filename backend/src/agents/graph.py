@@ -1,4 +1,5 @@
-from typing import TypedDict, List, Optional
+import operator
+from typing import TypedDict, List, Optional, Annotated
 from langgraph.graph import StateGraph, END
 from src.agents.intake import extract_details
 from src.agents.fir_drafter import draft_fir
@@ -16,7 +17,7 @@ class AgentState(TypedDict):
     routing: Optional[dict]
     safety_zone: Optional[dict]
     status: str
-    errors: List[str]
+    errors: Annotated[List[str], operator.add]
 
 # ─── Nodes ──────────────────────────────────────────────────────────
 
@@ -37,29 +38,28 @@ async def fir_drafting_node(state: AgentState) -> dict:
             "fir_result": result,
             "fir_draft": result.get("fir_text_english"),
             "ppc_sections": result.get("ppc_sections", []),
-            "status": "fir_drafted",
         }
     except Exception as e:
         logger.error(f"FIR error: {e}")
-        return {"errors": [str(e)], "status": "error_fir"}
+        return {"errors": [str(e)]}
 
 async def routing_node(state: AgentState) -> dict:
     logger.info("🚔 [Agent 3/4] Routing — finding nearest authority...")
     try:
         routing = await route_report(state["details"])
-        return {"routing": routing, "status": "routed"}
+        return {"routing": routing}
     except Exception as e:
         logger.error(f"Routing error: {e}")
-        return {"errors": [str(e)], "status": "error_routing"}
+        return {"errors": [str(e)]}
 
 async def safety_mapper_node(state: AgentState) -> dict:
     logger.info("🗺️ [Agent 4/4] Safety Mapper — classifying danger zone...")
     try:
         zone = await map_to_safety_zones(state["details"])
-        return {"safety_zone": zone, "status": "completed"}
+        return {"safety_zone": zone}
     except Exception as e:
         logger.error(f"Safety mapper error: {e}")
-        return {"errors": [str(e)], "status": "completed"}  # Non-fatal
+        return {"errors": [str(e)]}
 
 # ─── Graph ──────────────────────────────────────────────────────────
 
