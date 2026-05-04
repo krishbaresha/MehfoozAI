@@ -159,7 +159,7 @@ export default function LandingPage() {
         start: 'top 85%',
       },
       y: 40,
-      opacity: 0,
+      opacity: 1,
       duration: 0.8,
       stagger: 0.15,
       ease: 'power2.out'
@@ -167,14 +167,34 @@ export default function LandingPage() {
   }, { scope: container });
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    const handleResize = () => setIsMobile(window.innerWidth < 968);
+    let tickingScroll = false;
+    let tickingResize = false;
+
+    const handleScroll = () => {
+      if (!tickingScroll) {
+        window.requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 50);
+          tickingScroll = false;
+        });
+        tickingScroll = true;
+      }
+    };
+
+    const handleResize = () => {
+      if (!tickingResize) {
+        window.requestAnimationFrame(() => {
+          setIsMobile(window.innerWidth < 968);
+          tickingResize = false;
+        });
+        tickingResize = true;
+      }
+    };
     
     handleScroll();
     handleResize();
     
-    window.addEventListener('scroll', handleScroll);
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
@@ -184,8 +204,8 @@ export default function LandingPage() {
   return (
     <div ref={container} style={{ background: C.midnight, minHeight: "100vh", color: C.text, fontFamily: "'Inter', sans-serif", overflowX: "hidden" }}>
       {/* Dynamic Background Elements */}
-      <div style={{ position: "fixed", top: "-10%", left: "-10%", width: "40%", height: "40%", background: `radial-gradient(circle, ${C.rose}11 0%, transparent 70%)`, filter: "blur(100px)", zIndex: 0 }} />
-      <div style={{ position: "fixed", bottom: "-10%", right: "-10%", width: "50%", height: "50%", background: `radial-gradient(circle, ${C.lavender}08 0%, transparent 70%)`, filter: "blur(100px)", zIndex: 0 }} />
+      <div style={{ position: "fixed", top: "-10%", left: "-10%", width: "40%", height: "40%", background: `radial-gradient(circle, ${C.rose}11 0%, transparent 70%)`, filter: "blur(100px)", zIndex: 0, pointerEvents: "none", transform: "translateZ(0)", willChange: "transform" }} />
+      <div style={{ position: "fixed", bottom: "-10%", right: "-10%", width: "50%", height: "50%", background: `radial-gradient(circle, ${C.lavender}08 0%, transparent 70%)`, filter: "blur(100px)", zIndex: 0, pointerEvents: "none", transform: "translateZ(0)", willChange: "transform" }} />
 
       {/* Navigation */}
       <nav className="nav-container" style={{ 
@@ -475,7 +495,7 @@ export default function LandingPage() {
 
       {/* Final Call to Action */}
       <footer className="footer-section" style={{ padding: isMobile ? "60px 20px" : "140px 60px 80px", textAlign: "center", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 800, height: 800, background: `radial-gradient(circle, ${C.rose}05 0%, transparent 70%)`, zIndex: 0 }} />
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%) translateZ(0)", width: 800, height: 800, background: `radial-gradient(circle, ${C.rose}05 0%, transparent 70%)`, zIndex: 0, pointerEvents: "none", willChange: "transform" }} />
         
         <div className="footer-content" style={{ position: "relative", zIndex: 1 }}>
           <h2 style={{ fontSize: isMobile ? 36 : 56, fontWeight: 800, marginBottom: 28, color: "#fff", letterSpacing: "-0.03em" }}>Ready to reclaim your safety?</h2>
@@ -502,8 +522,6 @@ export default function LandingPage() {
               </div>
             </div>
             <div style={{ display: "flex", gap: isMobile ? 15 : 32, flexWrap: "wrap", justifyContent: "center" }}>
-              <Link href="/dashboard" className="footer-link">Dashboard</Link>
-              <Link href="/authority" className="footer-link">Authority Login</Link>
               <Link href="/legal" className="footer-link">Legal & Privacy</Link>
             </div>
           </div>
