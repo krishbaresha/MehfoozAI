@@ -111,8 +111,14 @@ const UrgencyDot = ({ urgency }) => {
 };
 
 const Card = ({ children, style:s, className }) => (
-  <div className={className} style={{ background:C.surface, border:`1px solid ${C.border}`,
-    borderRadius:16, ...s }}>{children}</div>
+  <div className={className} style={{ 
+    background:`linear-gradient(145deg, ${C.surface}, ${C.surface2})`, 
+    border:`1px solid ${C.border}`,
+    borderRadius:20, 
+    backdropFilter: 'blur(10px)',
+    boxShadow: '0 10px 30px -10px rgba(0,0,0,0.5)',
+    ...s 
+  }}>{children}</div>
 );
 
 /* ─── SIDEBAR ────────────────────────────────────────────────────────────── */
@@ -127,8 +133,10 @@ const Sidebar = ({ active, setActive, caseCount }) => {
   ];
 
   return (
-    <div style={{ width:216, background:C.deep, borderRight:`1px solid ${C.border}`,
-      display:"flex", flexDirection:"column", flexShrink:0, height:"100vh" }}>
+    <div style={{ width:230, background:`linear-gradient(to bottom, ${C.deep}, ${C.midnight})`, borderRight:`1px solid ${C.border}`,
+      display:"flex", flexDirection:"column", flexShrink:0, height:"100vh", position:"relative", zIndex:10 }}>
+    {/* Tactical Grid Background */}
+    <div style={{ position:"absolute", inset:0, backgroundImage:`radial-gradient(${C.border2} 1px, transparent 0)`, backgroundSize:"20px 20px", opacity:0.1, pointerEvents:"none" }} />
     {/* Logo */}
     <div style={{ padding:"22px 18px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -210,23 +218,26 @@ const Sidebar = ({ active, setActive, caseCount }) => {
 /* ─── TOP BAR ─────────────────────────────────────────────────────────────── */
 const TopBar = ({ title, subtitle, activeCount = 0, onMenuClick, isMobile }) => (
   <header style={{ 
+    height: 78,
     display: "flex", 
     justifyContent: "space-between", 
     alignItems: "center", 
-    padding: isMobile ? "14px 18px" : "16px 26px",
-    background: "rgba(10, 11, 15, 0.4)",
-    backdropFilter: "blur(12px)",
+    padding: isMobile ? "0 18px" : "0 32px",
+    background: "rgba(11, 15, 26, 0.6)",
+    backdropFilter: "blur(14px)",
     borderBottom: `1px solid ${C.border}`,
     width: "100%",
-    zIndex: 10
+    zIndex: 20,
+    position: "sticky",
+    top: 0
   }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
       {isMobile && (
         <button onClick={onMenuClick} style={{ 
           background: C.surface, 
           border: `1px solid ${C.border}`, 
-          borderRadius: 8, 
-          padding: 8, 
+          borderRadius: 10, 
+          padding: 10, 
           color: C.text2, 
           cursor: "pointer",
           display: "flex",
@@ -236,9 +247,9 @@ const TopBar = ({ title, subtitle, activeCount = 0, onMenuClick, isMobile }) => 
         </button>
       )}
       <div>
-        <h1 style={{ fontSize: isMobile ? 18 : 21, fontWeight: 700, fontFamily: "var(--font-display)",
-          letterSpacing: "-0.025em", color: C.text, lineHeight: 1.1 }}>{title}</h1>
-        {subtitle && !isMobile && <p style={{ fontSize: 12.5, color: C.text2, marginTop: 4 }}>{subtitle}</p>}
+        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, fontFamily: "var(--font-display)",
+          letterSpacing: "-0.02em", color: C.text, lineHeight: 1.1 }}>{title}</h1>
+        {subtitle && !isMobile && <p style={{ fontSize: 12, color: C.text3, marginTop: 4, fontWeight: 500 }}>{subtitle}</p>}
       </div>
     </div>
 
@@ -266,7 +277,7 @@ const TopBar = ({ title, subtitle, activeCount = 0, onMenuClick, isMobile }) => 
 );
 
 /* ─── DASHBOARD SCREEN ───────────────────────────────────────────────────── */
-const DashboardScreen = ({ apiData, isMobile }) => {
+const DashboardScreen = ({ apiData, isMobile, onNavigate }) => {
   const { stats: s, cases } = apiData;
   const stats = [
     { label:"Total Cases",   value:s.total_reports || "0", sub:"overall",         icon:"file",  color:C.rose,    trend:null },
@@ -297,12 +308,12 @@ const DashboardScreen = ({ apiData, isMobile }) => {
   return (
     <div className="dashboard-grid" style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column", gap:14, flex:1, overflowY:"auto" }}>
       {/* Stats */}
-      <div className="stats-container" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
+      <div className="stats-container" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom: 16 }}>
         {stats.map((s, i) => (
-          <div key={i} className="stat-card" style={{ background:C.surface, border:`1px solid ${C.border}`,
-            borderRadius:16, padding:"18px 20px", position:"relative", overflow:"hidden",
+          <div key={i} className="stat-card" style={{ background:`linear-gradient(135deg, ${C.surface}, ${C.surface2})`, border:`1px solid ${C.border}`,
+            borderRadius:20, padding:"24px 24px", position:"relative", overflow:"hidden",
             opacity:0, transform:"translateY(20px)", animation:`fadeInUp 0.6s ease forwards ${i*0.1}s`,
-            boxShadow: `0 10px 30px -10px rgba(0,0,0,0.5), 0 0 20px ${s.color}05` }}>
+            boxShadow: `0 15px 35px -12px rgba(0,0,0,0.6), 0 0 25px ${s.color}08` }}>
             {/* Accent glow */}
             <div style={{ position:"absolute", top:"-20%", right:"-10%", width:100, height:100,
               borderRadius:"50%", background:s.color, filter: "blur(40px)", opacity:0.12 }} />
@@ -324,12 +335,17 @@ const DashboardScreen = ({ apiData, isMobile }) => {
       </div>
 
       {/* Lower panels */}
-      <div className="panels-container" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, flex:1 }}>
+      <div className="panels-container" style={{ display:"grid", gridTemplateColumns:"1.2fr 0.8fr", gap:16, flex:1 }}>
         {/* Activity feed */}
         <Card style={{ padding:"18px 20px", display:"flex", flexDirection:"column", gap:12 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <span style={{ fontSize:13.5, fontWeight:600, color:C.text }}>Recent Activity</span>
-            <span style={{ fontSize:11, color:C.text3, cursor:"pointer" }}>View all →</span>
+            <span 
+              onClick={() => onNavigate('cases')}
+              style={{ fontSize:11, color:C.text3, cursor:"pointer" }}
+            >
+              View all →
+            </span>
           </div>
           <div>
             {activity.map((a, i) => (
@@ -685,40 +701,124 @@ const ResolveModal = ({ caseData, onClose, onResolved }) => {
 const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
   const [filter, setFilter] = useState("all");
   const [resolveTarget, setResolveTarget] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  
   const FILTERS = ["all","pending","drafted","routed"];
   const activeCases = cases.filter(c => c.status !== "closed");
   const filtered = filter === "all" ? activeCases : activeCases.filter(c => c.status === filter);
 
+  const toggleSelect = (id) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(c => c.id)));
+    }
+  };
+
+  const handleBulkResolve = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Are you sure you want to resolve ${selectedIds.size} selected cases?`)) return;
+    
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/cases/bulk-resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_ids: Array.from(selectedIds) })
+      });
+      if (res.ok) {
+        selectedIds.forEach(id => onResolve(id));
+        setSelectedIds(new Set());
+      }
+    } catch (err) {
+      console.error("Bulk resolve failed", err);
+    }
+  };
+
+  const handleResolveAll = async () => {
+    const allIds = filtered.map(c => c.id);
+    if (allIds.length === 0) return;
+    if (!confirm(`Are you sure you want to resolve ALL ${allIds.length} active cases?`)) return;
+
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/cases/bulk-resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_ids: allIds })
+      });
+      if (res.ok) {
+        allIds.forEach(id => onResolve(id));
+        setSelectedIds(new Set());
+      }
+    } catch (err) {
+      console.error("Resolve all failed", err);
+    }
+  };
+
   return (
-    <div style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column",
+    <div className="dashboard-grid" style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column",
       gap:14, flex:1, overflow:"hidden" }}>
-      {/* Filter pills */}
-      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-        {FILTERS.map(f => (
-          <button key={f} className="pill-btn"
-            onClick={() => setFilter(f)}
-            style={{ padding:"5px 14px", borderRadius:20, border:`1px solid ${filter===f ? C.rose : C.border}`,
-              background: filter===f ? C.roseDim : "transparent",
-              color: filter===f ? C.roseLight : C.text2,
-              fontSize:12, fontWeight:500, cursor:"pointer", textTransform:"capitalize" }}>
-            {f}
+      {/* Filter pills & Bulk Actions */}
+      <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+        <div style={{ display:"flex", gap:6 }}>
+          {FILTERS.map(f => (
+            <button key={f} className="pill-btn"
+              onClick={() => setFilter(f)}
+              style={{ padding:"5px 14px", borderRadius:20, border:`1px solid ${filter===f ? C.rose : C.border}`,
+                background: filter===f ? C.roseDim : "transparent",
+                color: filter===f ? C.roseLight : C.text2,
+                fontSize:12, fontWeight:500, cursor:"pointer", textTransform:"capitalize" }}>
+              {f}
+            </button>
+          ))}
+        </div>
+        
+        <div style={{ display:"flex", gap:8, marginLeft: isMobile ? 0 : "auto" }}>
+          {selectedIds.size > 0 && (
+            <button onClick={handleBulkResolve} className="pill-btn"
+              style={{ padding:"5px 14px", borderRadius:20, border:`1px solid ${C.green}`,
+                background: "rgba(52,211,153,0.1)", color: C.green,
+                fontSize:11, fontWeight:700, cursor:"pointer" }}>
+              Resolve Selected ({selectedIds.size})
+            </button>
+          )}
+          <button onClick={handleResolveAll} className="pill-btn"
+            style={{ padding:"5px 14px", borderRadius:20, border:`1px solid ${C.border}`,
+              background: "transparent", color: C.text2,
+              fontSize:11, fontWeight:500, cursor:"pointer" }}>
+            Resolve All
           </button>
-        ))}
-        <span style={{ marginLeft:"auto", fontSize:11, color:C.text3 }}>{filtered.length} cases</span>
+        </div>
+        {!isMobile && <span style={{ fontSize:11, color:C.text3 }}>{filtered.length} cases</span>}
       </div>
 
       {/* Table */}
       <Card style={{ overflow:"hidden", flex:1, display:"flex", flexDirection:"column" }}>
         <div style={{ overflowX:"auto" }}>
-          <div style={{ minWidth: 800 }}>
+          <div style={{ minWidth: 900 }}>
             {/* Header row */}
             <div style={{ 
               display: "grid", 
-              gridTemplateColumns: isMobile ? "1fr 100px 80px 40px" : "150px 100px 120px 1fr 120px 90px 70px 145px",
+              gridTemplateColumns: isMobile ? "30px 1fr 100px 80px 40px" : "40px 150px 100px 120px 1fr 120px 90px 70px 145px",
               padding: isMobile ? "10px 12px" : "9px 18px", 
               borderBottom: `1px solid ${C.border}`, 
               background: C.midnight 
             }} className="header-row">
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <input type="checkbox" 
+                  checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                  onChange={toggleSelectAll}
+                  style={{ cursor: "pointer" }} 
+                />
+              </div>
               {["Case ID","Type","Location","Quick Intel","PPC Sections","Status","Cred.","Actions"].map((h, idx) => {
                 const isHiddenOnMobile = [0, 3, 4, 6].includes(idx);
                 return (
@@ -735,11 +835,19 @@ const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
                   onClick={() => onSelectCase(c)}
                   style={{ 
                     display: "grid", 
-                    gridTemplateColumns: isMobile ? "1fr 100px 80px 40px" : "150px 100px 120px 1fr 120px 90px 70px 145px",
-                    padding: isMobile ? "12px" : "13px 18px", 
+                    gridTemplateColumns: isMobile ? "30px 1fr 100px 80px 40px" : "40px 150px 110px 140px 1fr 140px 100px 80px 130px",
+                    padding: isMobile ? "16px 12px" : "18px 24px", 
                     alignItems: "center",
-                    borderBottom: i < filtered.length - 1 ? `1px solid ${C.border}` : "none",
+                    borderBottom: `1px solid ${C.border}`,
+                    background: selectedIds.has(c.id) ? "rgba(255,255,255,0.03)" : "transparent"
                   }}>
+                  <div style={{ display: "flex", alignItems: "center" }} onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" 
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      style={{ cursor: "pointer" }}
+                    />
+                  </div>
                   {/* Case ID */}
                   <div className="col-hide-mobile" style={{ fontSize: 10, color: C.text3, fontWeight: 600, fontFamily: "monospace" }}>{c.id}</div>
                   
@@ -819,7 +927,7 @@ const SolvedCasesScreen = ({ cases = [], isMobile }) => {
   const solved = cases.filter(c => c.status === "closed");
 
   return (
-    <div style={{ padding: isMobile ? "12px" : "16px 26px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1, overflowY: "auto" }}>
+    <div className="dashboard-grid" style={{ padding: isMobile ? "12px" : "16px 26px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1, overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ padding: "8px 14px", borderRadius: 20, background: C.greenDim, color: C.green, fontSize: 12, fontWeight: 700 }}>
           {solved.length} Cases Resolved
@@ -919,7 +1027,7 @@ ${c.ppc.map(p => `  • ${p}`).join("\n")}
 محفوظ اے آئی · خفیہ کاری · گمنام`;
 
   return (
-    <div style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column",
+    <div className="dashboard-grid" style={{ padding:"16px 26px 20px", display:"flex", flexDirection:"column",
       gap:14, flex:1, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
         {onBack && (
@@ -1156,7 +1264,7 @@ const App = () => {
     };
     
     fetchData();
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1250,7 +1358,7 @@ const App = () => {
           isMobile={isMobile}
         />
         <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-          {screen === "dashboard" && <DashboardScreen apiData={apiData} isMobile={isMobile} />}
+          {screen === "dashboard" && <DashboardScreen apiData={apiData} isMobile={isMobile} onNavigate={handleNav} />}
           {screen === "whatsapp"  && <WhatsAppScreen showUrdu={tweaks.showUrdu} isMobile={isMobile} />}
           {screen === "cases"     && <CasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} onResolve={handleCaseResolved} isMobile={isMobile} />}
           {screen === "fir"       && <FIRViewer selectedCase={selectedCase || apiData.cases[0]} onBack={() => setScreen("cases")} isMobile={isMobile} />}

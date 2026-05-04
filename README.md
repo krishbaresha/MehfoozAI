@@ -15,3 +15,5 @@ AI-Powered Community Safety & Tactical Intelligence Platform.
 This space runs the FastAPI backend via Docker.
 - **Port:** 7860
 - **Webhook Endpoint:** /webhook
+MHZ-AUTH-8829
+mehfooz2024

@@ -52,31 +52,26 @@ async def send_whatsapp_reply(to_number: str, message: str):
             "text": {"body": message}
         }
         
-        import requests
-        session = requests.Session()
-        
-        for attempt in range(1, 4): # Try 3 times
-            try:
-                logger.info(f"📤 [Attempt {attempt}] Sending to {clean_number}...")
-                response = session.post(url, headers=headers, json=data, timeout=15)
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            for attempt in range(1, 4): # Try 3 times
+                try:
+                    logger.info(f"📤 [Attempt {attempt}] Sending to {clean_number}...")
+                    response = await client.post(url, headers=headers, json=data)
+                    
+                    if response.status_code in (200, 201, 202):
+                        logger.info(f"✅ WhatsApp reply SUCCESS for {clean_number}")
+                        return
+                    
+                    logger.error(f"❌ Meta API Error {response.status_code}: {response.text}")
+                    if response.status_code in (401, 403):
+                        logger.error("🛑 Auth Error. Check Token/Permissions.")
+                        return
+                    
+                except Exception as e:
+                    logger.error(f"💥 Meta API Error on attempt {attempt}: {str(e)}")
                 
-                if response.status_code in (200, 201, 202):
-                    logger.info(f"✅ WhatsApp reply SUCCESS for {clean_number}")
-                    return
-                
-                logger.error(f"❌ Meta API Error {response.status_code}: {response.text}")
-                if response.status_code in (401, 403):
-                    logger.error("🛑 Auth Error. Check Token/Permissions.")
-                    return
-                # On 500 or 429, we might want to retry
-                
-            except requests.exceptions.Timeout:
-                logger.warning(f"⏳ Timeout on attempt {attempt} (15s). Retrying...")
-            except Exception as e:
-                logger.error(f"💥 Connection Error on attempt {attempt}: {type(e).__name__} - {str(e)}")
-            
-            import time
-            time.sleep(1) # Small gap between retries
+                import asyncio
+                await asyncio.sleep(1) # Async gap between retries
 
     else:
         logger.error("❌ Meta API not configured. Check META_ACCESS_TOKEN and META_PHONE_NUMBER_ID in .env")

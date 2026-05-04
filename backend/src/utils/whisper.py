@@ -1,11 +1,11 @@
-from groq import Groq
+from groq import AsyncGroq
 from src.config.settings import settings
 import httpx
 import os
 from loguru import logger
 from typing import Optional
 
-client = Groq(api_key=settings.GROQ_API_KEY.get_secret_value())
+client = AsyncGroq(api_key=settings.GROQ_API_KEY.get_secret_value())
 
 async def get_meta_media_url(media_id: str) -> Optional[str]:
     """Get the download URL for a media file from Meta API."""
@@ -62,7 +62,7 @@ async def transcribe_voice(media_id_or_url: str) -> str:
     # 3. Transcribe using Groq
     try:
         with open(file_path, "rb") as file:
-            transcription = client.audio.transcriptions.create(
+            transcription = await client.audio.transcriptions.create(
                 file=(file_path, file.read()),
                 model="whisper-large-v3",
                 prompt="Specify that the language is Urdu or a related regional language from Pakistan. The audio is a report of a safety incident.",

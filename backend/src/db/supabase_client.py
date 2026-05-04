@@ -388,8 +388,17 @@ async def get_heatmap_points():
 
 # Keep other functions
 async def get_case_status(cid): return {"status": "routed"}
-async def get_authority_cases(): return await get_recent_cases()
-def get_supabase_headers(): return {}
+async def get_authority_cases(): 
+    """Authority cases includes detailed intel + status filter."""
+    return await get_recent_cases()
+
+def get_supabase_headers(): 
+    return {
+        "apikey": settings.SUPABASE_SERVICE_ROLE_KEY.get_secret_value(),
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY.get_secret_value()}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
 
 async def check_db_ready():
     init_db()
@@ -397,3 +406,29 @@ async def check_db_ready():
     conn.execute("SELECT 1")
     conn.close()
     return True
+
+async def resolve_cases(case_ids: list):
+    """Update multiple cases to 'closed' status."""
+    if not case_ids:
+        return
+        
+    if supabase:
+        try:
+            supabase.table("incidents").update({"status": "closed"}).in_("case_id", case_ids).execute()
+            logger.info(f"✅ Resolved cases in Supabase: {case_ids}")
+        except Exception as e:
+            logger.error(f"❌ Supabase Resolve Error: {e}")
+
+    # SQLite Fallback
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        placeholders = ', '.join(['?'] * len(case_ids))
+        c.execute(f"UPDATE incidents SET status = 'closed' WHERE case_id IN ({placeholders})", case_ids)
+        conn.commit()
+        logger.info(f"✅ Resolved cases in SQLite: {case_ids}")
+    except Exception as e:
+        logger.error(f"❌ SQLite Resolve Error: {e}")
+    finally:
+        conn.close()

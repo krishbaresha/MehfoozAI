@@ -71,9 +71,15 @@ workflow.add_node("router", routing_node)
 workflow.add_node("safety_mapper", safety_mapper_node)
 
 workflow.set_entry_point("intake")
+
+# Branching: Run these in parallel as they only depend on intake details
 workflow.add_edge("intake", "fir_drafter")
-workflow.add_edge("fir_drafter", "router")
-workflow.add_edge("router", "safety_mapper")
+workflow.add_edge("intake", "router")
+workflow.add_edge("intake", "safety_mapper")
+
+# All paths lead to completion
+workflow.add_edge("fir_drafter", END)
+workflow.add_edge("router", END)
 workflow.add_edge("safety_mapper", END)
 
 app_graph = workflow.compile()

@@ -8,7 +8,7 @@ from src.agents.followup import handle_followup
 from src.db.supabase_client import (
     generate_case_id, save_incident, update_heatmap, get_case_status,
     check_db_ready, get_dashboard_stats, get_recent_cases, get_heatmap_points,
-    get_authority_cases, get_supabase_headers
+    get_authority_cases, get_supabase_headers, resolve_cases
 )
 from src.utils.notifications import send_whatsapp_reply, send_case_confirmation
 from src.utils.whisper import transcribe_voice
@@ -19,7 +19,7 @@ import pytz
 from datetime import datetime
 
 PKST = pytz.timezone('Asia/Karachi')
-SESSIONS = {}
+# SESSIONS moved down to section 75 for clarity
 
 app = FastAPI(
     title="MehfoozAI API",
@@ -74,6 +74,41 @@ async def ready():
 # ─── WhatsApp Webhook ────────────────────────────────────────────────
 # ─── Simple Session Memory (For Demo) ───────────────────────────────
 SESSIONS = {}  # { sender_phone: { last_case_id: str, last_activity: datetime } }
+
+# ─── Auth ───────────────────────────────────────────────────────────
+from pydantic import BaseModel
+
+class LoginRequest(BaseModel):
+    badge_id: str
+    access_key: str
+
+class BulkResolveRequest(BaseModel):
+    case_ids: list[str]
+
+@app.post("/api/v1/auth/login")
+async def login(req: LoginRequest):
+    """
+    Temporary authentication for hackathon demo.
+    Hardcoded for security node showcase.
+    """
+    # Demo credentials
+    VALID_BADGE = "MHZ-AUTH-8829"
+    VALID_KEY = "mehfooz2024"
+    
+    # Strip whitespace to prevent copy-paste errors
+    submitted_badge = req.badge_id.strip()
+    submitted_key = req.access_key.strip()
+    
+    logger.info(f"🔑 Auth Attempt - Badge: '{submitted_badge}', Key: '{submitted_key}'")
+    
+    if submitted_badge == VALID_BADGE and submitted_key == VALID_KEY:
+        logger.info(f"✅ Auth Success: {submitted_badge}")
+        return {"status": "success", "message": "Access Granted", "token": "demo-token-123"}
+    
+    logger.warning(f"🚫 Auth Failure - Submitted: '{submitted_badge}' / '{submitted_key}'")
+    from fastapi import HTTPException
+    raise HTTPException(status_code=401, detail="Invalid Credentials. Access Denied.")
+
 
 # ─── Debug Pipeline ──────────────────────────────────────────────────
 @app.get("/debug/pipeline")
@@ -486,6 +521,20 @@ async def resolve_case(case_id: str, body: ResolveRequest):
 
     except Exception as e:
         logger.error(f"❌ Resolve Error: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+        
+@app.post("/api/v1/cases/bulk-resolve")
+async def bulk_resolve(req: BulkResolveRequest):
+    """
+    Resolve multiple cases at once.
+    """
+    logger.info(f"📦 Bulk Resolve Request for: {req.case_ids}")
+    try:
+        await resolve_cases(req.case_ids)
+        return {"status": "success", "resolved_count": len(req.case_ids)}
+    except Exception as e:
+        logger.error(f"❌ Bulk Resolve Error: {e}")
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=str(e))
 
