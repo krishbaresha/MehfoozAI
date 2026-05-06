@@ -353,6 +353,10 @@ async def handle_meta_webhook_payload(body: dict, background_tasks: BackgroundTa
                         if media_url:
                             await send_whatsapp_reply(sender, "🎙️ Voice note mili — transcription ho rahi hai... ⏳")
                             await process_voice_report(sender, media_url)
+                        elif location_data:
+                            await send_whatsapp_reply(sender, "📍 Location mili. AI processing shuru ho gayi hai... ✨")
+                            location_text = f"User sent their exact live location. Location coordinates: Latitude {location_data['lat']}, Longitude {location_data['lon']}."
+                            await process_report(sender, location_text, [], location_data)
                         elif incoming_msg and len(incoming_msg) > 10:
                             await send_whatsapp_reply(sender, "🛡️ *Report moosool hui!* AI processing shuru ho gayi hai... ✨")
                             await process_report(sender, incoming_msg, [], location_data)
@@ -527,16 +531,73 @@ async def resolve_case(case_id: str, body: ResolveRequest):
 @app.post("/api/v1/cases/bulk-resolve")
 async def bulk_resolve(req: BulkResolveRequest):
     """
-    Resolve multiple cases at once.
+    Resolve multiple cases at once — marks each as 'closed' and
+    sends a WhatsApp resolution message to each reporter.
     """
+    import sqlite3
+    from src.db.supabase_client import supabase
+    DB_PATH = "mehfooz.db"
+
     logger.info(f"📦 Bulk Resolve Request for: {req.case_ids}")
-    try:
-        await resolve_cases(req.case_ids)
-        return {"status": "success", "resolved_count": len(req.case_ids)}
-    except Exception as e:
-        logger.error(f"❌ Bulk Resolve Error: {e}")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=str(e))
+    resolved = []
+    failed = []
+
+    for case_id in req.case_ids:
+        try:
+            case = None
+
+            # 1. Update Supabase
+            if supabase:
+                try:
+                    sb_fetch = supabase.table("incidents").select("*").eq("case_id", case_id).execute()
+                    if sb_fetch.data:
+                        case = sb_fetch.data[0]
+                    supabase.table("incidents").update({"status": "closed"}).eq("case_id", case_id).execute()
+                    logger.info(f"✅ Supabase Case {case_id} marked as closed")
+                except Exception as sb_err:
+                    logger.error(f"❌ Supabase Bulk Resolve Error for {case_id}: {sb_err}")
+
+            # 2. Update SQLite (fallback)
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            if case is None:
+                c.execute("SELECT * FROM incidents WHERE case_id = ?", (case_id,))
+                row = c.fetchone()
+                if row:
+                    case = dict(row)
+            c.execute("UPDATE incidents SET status = 'closed' WHERE case_id = ?", (case_id,))
+            conn.commit()
+            conn.close()
+
+            # 3. Send WhatsApp message to reporter
+            sender = (case or {}).get("sender_phone", "")
+            if sender and sender not in ("Anonymous", "", None):
+                msg = (
+                    f"✅ *MehfoozAI — Case Resolved*\n\n"
+                    f"🆔 *Case ID:* {case_id}\n\n"
+                    f"Aapka case successfully handle ho gaya hai. Authorities ne action le liya hai.\n\n"
+                    f"Agar dobara koi masla ho, humein message karein.\n\n"
+                    f"_MehfoozAI — Har awaz suni jaayegi._"
+                )
+                await send_whatsapp_reply(sender, msg)
+                logger.info(f"📩 Resolution message sent to {sender} for case {case_id}")
+            else:
+                logger.info(f"⚠️ No phone number for case {case_id} — message skipped")
+
+            resolved.append(case_id)
+
+        except Exception as e:
+            logger.error(f"❌ Bulk Resolve failed for {case_id}: {e}")
+            failed.append(case_id)
+
+    return {
+        "status": "success",
+        "resolved_count": len(resolved),
+        "failed_count": len(failed),
+        "resolved": resolved,
+        "failed": failed
+    }
 
 @app.get("/api/v1/cases/solved")
 async def get_solved_cases():

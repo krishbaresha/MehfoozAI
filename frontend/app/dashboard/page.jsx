@@ -852,7 +852,10 @@ const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
                   <div className="col-hide-mobile" style={{ fontSize: 10, color: C.text3, fontWeight: 600, fontFamily: "monospace" }}>{c.id}</div>
                   
                   {/* Type */}
-                  <div style={{ fontSize: isMobile ? 13 : 12, fontWeight: 700, color: C.text }}>{c.type}</div>
+                  <div>
+                    <div style={{ fontSize: isMobile ? 13 : 12, fontWeight: 700, color: C.text }}>{c.type}</div>
+                    <div style={{ fontSize: 9.5, color: C.text3, marginTop: 2, fontFamily: "monospace" }}>{c.phone || "Anonymous"}</div>
+                  </div>
                   
                   {/* Location */}
                   <div style={{ fontSize: 11, color: C.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.location}</div>
@@ -923,7 +926,7 @@ const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
 };
 
 /* ─── SOLVED CASES SCREEN ───────────────────────────────────────────────── */
-const SolvedCasesScreen = ({ cases = [], isMobile }) => {
+const SolvedCasesScreen = ({ cases = [], onSelectCase, isMobile }) => {
   const solved = cases.filter(c => c.status === "closed");
 
   return (
@@ -942,13 +945,18 @@ const SolvedCasesScreen = ({ cases = [], isMobile }) => {
       ) : (
         <div className="panels-container" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
           {solved.map(c => (
-            <Card key={c.id} style={{ padding: 16, border: `1px solid ${C.greenDim}` }}>
+            <Card key={c.id} 
+              style={{ padding: 16, border: `1px solid ${C.greenDim}`, cursor: "pointer", transition: "all 0.2s" }}
+              className="row-hover"
+              onClick={() => onSelectCase && onSelectCase(c)}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ fontSize: 10, color: C.text3, fontWeight: 600 }}>{c.id}</div>
                 <div style={{ fontSize: 10, color: C.green, fontWeight: 800, textTransform: "uppercase" }}>Resolved ✓</div>
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>{c.type}</div>
-              <div style={{ fontSize: 12, color: C.text2, marginBottom: 12 }}>{c.location} · {c.time}</div>
+              <div style={{ fontSize: 12, color: C.text2, marginBottom: 4, fontFamily: "monospace" }}>{c.phone || "Anonymous"}</div>
+              <div style={{ fontSize: 11, color: C.text2, marginBottom: 12 }}>{c.location} · {c.time}</div>
               <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.5, background: C.midnight, padding: 10, borderRadius: 8 }}>
                 {c.desc.substring(0, 100)}...
               </div>
@@ -1234,7 +1242,22 @@ const App = () => {
         const casesData = await casesRes.json();
         console.log("📂 Cases received:", casesData.data?.length || 0);
         
-        const mappedCases = (casesData.data || []).map(c => {
+        const solvedRes = await fetch(`${baseUrl}/api/v1/cases/solved`);
+        const solvedData = await solvedRes.json();
+        console.log("📂 Solved Cases received:", solvedData.data?.length || 0);
+
+        const allCasesRaw = [...(casesData.data || []), ...(solvedData.data || [])];
+        const uniqueCasesMap = new Map();
+        allCasesRaw.forEach(c => {
+          if (c && c.case_id && !uniqueCasesMap.has(c.case_id)) {
+            uniqueCasesMap.set(c.case_id, c);
+          } else if (c && !c.case_id) {
+            uniqueCasesMap.set(Math.random().toString(), c);
+          }
+        });
+        const combinedCases = Array.from(uniqueCasesMap.values());
+        
+        const mappedCases = combinedCases.map(c => {
           try {
             return {
               id: c.case_id || `MHZ-ID-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
@@ -1361,9 +1384,9 @@ const App = () => {
           {screen === "dashboard" && <DashboardScreen apiData={apiData} isMobile={isMobile} onNavigate={handleNav} />}
           {screen === "whatsapp"  && <WhatsAppScreen showUrdu={tweaks.showUrdu} isMobile={isMobile} />}
           {screen === "cases"     && <CasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} onResolve={handleCaseResolved} isMobile={isMobile} />}
-          {screen === "fir"       && <FIRViewer selectedCase={selectedCase || apiData.cases[0]} onBack={() => setScreen("cases")} isMobile={isMobile} />}
+          {screen === "fir"       && <FIRViewer selectedCase={selectedCase || apiData.cases[0]} onBack={() => setScreen((selectedCase && selectedCase.status === 'closed') ? "solved" : "cases")} isMobile={isMobile} />}
           {screen === "heatmap"   && <HeatmapScreen />}
-          {screen === "solved"    && <SolvedCasesScreen cases={apiData.cases} isMobile={isMobile} />}
+          {screen === "solved"    && <SolvedCasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} isMobile={isMobile} />}
         </div>
       </div>
     </div>

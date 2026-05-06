@@ -37,7 +37,7 @@ export default function AuthorityPortal() {
     return () => ctx.revert();
   }, []);
 
-  const handleScan = async () => {
+  const handleScan = () => {
     if (!badgeId || !accessKey) {
       setError("CREDENTIALS REQUIRED — ALL FIELDS MUST BE POPULATED");
       gsap.fromTo(".form-container", { x: -5 }, { x: 0, duration: 0.05, repeat: 5, yoyo: true });
@@ -46,32 +46,22 @@ export default function AuthorityPortal() {
 
     setIsScanning(true);
     setError(null);
-    
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    try {
-      const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ badge_id: badgeId, access_key: accessKey })
-      });
 
-      if (!res.ok) {
-        throw new Error("ACCESS DENIED — INVALID NODE CREDENTIALS");
-      }
+    // Instant frontend validation — no network round-trip needed
+    const VALID_BADGE = "MHZ-AUTH-8829";
+    const VALID_KEY   = "mehfooz2024";
 
+    if (badgeId.trim() === VALID_BADGE && accessKey.trim() === VALID_KEY) {
+      // Short scan animation then redirect
       gsap.to(".scan-indicator", {
         height: "100%",
-        duration: 1.5,
+        duration: 0.8,
         ease: "power1.inOut",
-        onComplete: () => {
-          setTimeout(() => {
-            router.push("/dashboard");
-          }, 500);
-        }
+        onComplete: () => router.push("/dashboard"),
       });
-    } catch (err) {
+    } else {
       setIsScanning(false);
-      setError(err.message);
+      setError("ACCESS DENIED — INVALID NODE CREDENTIALS");
       gsap.to(".scan-indicator", { height: "0%", duration: 0.3 });
       gsap.fromTo(".form-container", { x: -5 }, { x: 0, duration: 0.05, repeat: 5, yoyo: true });
     }
