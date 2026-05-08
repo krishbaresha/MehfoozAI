@@ -34,7 +34,7 @@ export const Team = ({ isMobile }) => (
         },
         {
           name: "Talha Aslam",
-          role: "Innovation & Business Dev",
+          role: "Innovation & Code Developer",
           bio: "Scaling the impact of AI for social safety globally.",
           link: "https://www.linkedin.com/in/talha-aslam-mk/"
         },

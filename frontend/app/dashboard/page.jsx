@@ -926,17 +926,76 @@ const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
 };
 
 /* ─── SOLVED CASES SCREEN ───────────────────────────────────────────────── */
-const SolvedCasesScreen = ({ cases = [], onSelectCase, isMobile }) => {
+const SolvedCasesScreen = ({ cases = [], onSelectCase, onDelete, isMobile }) => {
   const solved = cases.filter(c => c.status === "closed");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // 'bulk' | case_id | null
+  const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  const toggleSelect = (id, e) => {
+    e.stopPropagation();
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === solved.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(solved.map(c => c.id)));
+  };
+
+  const handleDeleteSingle = async (id) => {
+    setDeleting(true);
+    try {
+      await fetch(`${API}/api/v1/cases/${id}`, { method: "DELETE" });
+      onDelete([id]);
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+    } catch (e) { console.error("Delete failed", e); }
+    finally { setDeleting(false); setConfirmDelete(null); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      await fetch(`${API}/api/v1/cases/bulk-delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_ids: Array.from(selectedIds) })
+      });
+      onDelete(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    } catch (e) { console.error("Bulk delete failed", e); }
+    finally { setDeleting(false); setConfirmDelete(null); }
+  };
 
   return (
     <div className="dashboard-grid" style={{ padding: isMobile ? "12px" : "16px 26px 20px", display: "flex", flexDirection: "column", gap: 14, flex: 1, overflowY: "auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Toolbar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ padding: "8px 14px", borderRadius: 20, background: C.greenDim, color: C.green, fontSize: 12, fontWeight: 700 }}>
           {solved.length} Cases Resolved
         </div>
+        {solved.length > 0 && (
+          <>
+            <button onClick={toggleAll}
+              style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${C.border2}`,
+                background: "transparent", color: C.text2, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>
+              {selectedIds.size === solved.length ? "Deselect All" : "Select All"}
+            </button>
+            {selectedIds.size > 0 && (
+              <button onClick={() => setConfirmDelete('bulk')} disabled={deleting}
+                style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid rgba(248,113,113,0.4)`,
+                  background: "rgba(248,113,113,0.08)", color: C.red, fontSize: 11,
+                  fontWeight: 700, cursor: "pointer" }}>
+                🗑️ Delete Selected ({selectedIds.size})
+              </button>
+            )}
+          </>
+        )}
       </div>
-      
+
       {solved.length === 0 ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, opacity: 0.6 }}>
           <Ico name="shield" size={40} color={C.text3} />
@@ -945,23 +1004,100 @@ const SolvedCasesScreen = ({ cases = [], onSelectCase, isMobile }) => {
       ) : (
         <div className="panels-container" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
           {solved.map(c => (
-            <Card key={c.id} 
-              style={{ padding: 16, border: `1px solid ${C.greenDim}`, cursor: "pointer", transition: "all 0.2s" }}
+            <Card key={c.id}
+              style={{
+                padding: 16,
+                border: selectedIds.has(c.id)
+                  ? `1px solid rgba(248,113,113,0.4)`
+                  : `1px solid ${C.greenDim}`,
+                cursor: "pointer", transition: "all 0.2s",
+                background: selectedIds.has(c.id)
+                  ? `linear-gradient(145deg, rgba(248,113,113,0.05), ${C.surface2})`
+                  : undefined
+              }}
               className="row-hover"
               onClick={() => onSelectCase && onSelectCase(c)}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 10, color: C.text3, fontWeight: 600 }}>{c.id}</div>
-                <div style={{ fontSize: 10, color: C.green, fontWeight: 800, textTransform: "uppercase" }}>Resolved ✓</div>
+              {/* Header row */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {/* Checkbox */}
+                  <div onClick={e => toggleSelect(c.id, e)}
+                    style={{ width: 16, height: 16, borderRadius: 4,
+                      border: `1.5px solid ${selectedIds.has(c.id) ? C.red : C.border2}`,
+                      background: selectedIds.has(c.id) ? "rgba(248,113,113,0.15)" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0, cursor: "pointer" }}>
+                    {selectedIds.has(c.id) && <span style={{ color: C.red, fontSize: 10, lineHeight: 1 }}>✓</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.text3, fontWeight: 600, fontFamily: "monospace" }}>{c.id}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ fontSize: 10, color: C.green, fontWeight: 800, textTransform: "uppercase" }}>Resolved ✓</div>
+                  {/* Delete button */}
+                  <button onClick={e => { e.stopPropagation(); setConfirmDelete(c.id); }}
+                    style={{ padding: "3px 8px", borderRadius: 7, border: `1px solid rgba(248,113,113,0.3)`,
+                      background: "rgba(248,113,113,0.08)", color: C.red, fontSize: 10,
+                      cursor: "pointer", fontWeight: 600 }}>
+                    🗑️
+                  </button>
+                </div>
               </div>
+
               <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>{c.type}</div>
               <div style={{ fontSize: 12, color: C.text2, marginBottom: 4, fontFamily: "monospace" }}>{c.phone || "Anonymous"}</div>
               <div style={{ fontSize: 11, color: C.text2, marginBottom: 12 }}>{c.location} · {c.time}</div>
-              <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.5, background: C.midnight, padding: 10, borderRadius: 8 }}>
-                {c.desc.substring(0, 100)}...
+              <div style={{ fontSize: 12, color: C.text2, lineHeight: 1.5, background: C.midnight, padding: 10, borderRadius: 8 }}>
+                {(c.desc || "").substring(0, 120)}{(c.desc || "").length > 120 ? "..." : ""}
+              </div>
+
+              {/* Read FIR link */}
+              <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={e => { e.stopPropagation(); onSelectCase && onSelectCase(c); }}
+                  style={{ padding: "5px 12px", borderRadius: 10, border: `1px solid ${C.border2}`,
+                    background: C.lavenderDim, color: C.lavender, fontSize: 11,
+                    fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                  <Ico name="scale" size={11} color={C.lavender} /> View FIR Report
+                </button>
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Confirm Delete Modal */}
+      {confirmDelete && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.7)",
+          backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setConfirmDelete(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: C.surface, border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 20,
+            padding: 28, width: 420, maxWidth: "90vw", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.red, marginBottom: 8 }}>⚠️ Confirm Delete</div>
+            <div style={{ fontSize: 13, color: C.text2, marginBottom: 22, lineHeight: 1.6 }}>
+              {confirmDelete === 'bulk'
+                ? `Kya aap waqai ${selectedIds.size} selected case(s) permanently delete karna chahte hain? Yeh action undo nahi ho sakta.`
+                : `Kya aap waqai case "${confirmDelete}" ko permanently delete karna chahte hain? Yeh action undo nahi ho sakta.`
+              }
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setConfirmDelete(null)}
+                style={{ padding: "8px 18px", borderRadius: 10, border: `1px solid ${C.border2}`,
+                  background: "transparent", color: C.text2, fontSize: 13, cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmDelete === 'bulk' ? handleBulkDelete() : handleDeleteSingle(confirmDelete)}
+                disabled={deleting}
+                style={{ padding: "8px 22px", borderRadius: 10, border: "none",
+                  background: "linear-gradient(135deg,#f87171,#dc2626)",
+                  color: "white", fontSize: 13, fontWeight: 700,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                  boxShadow: "0 4px 14px rgba(248,113,113,0.35)" }}>
+                {deleting ? "Deleting…" : "Yes, Delete Permanently"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1311,6 +1447,13 @@ const App = () => {
     }));
   };
 
+  const handleCasesDeleted = (deletedIds) => {
+    setApiData(prev => ({
+      ...prev,
+      cases: prev.cases.filter(c => !deletedIds.includes(c.id))
+    }));
+  };
+
   const META = {
     dashboard: { title:"Overview",          sub:"MehfoozAI — Women's Safety Platform, Pakistan" },
     whatsapp:  { title:"WhatsApp Intake",    sub:"AI-powered anonymous reporting pipeline" },
@@ -1386,7 +1529,7 @@ const App = () => {
           {screen === "cases"     && <CasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} onResolve={handleCaseResolved} isMobile={isMobile} />}
           {screen === "fir"       && <FIRViewer selectedCase={selectedCase || apiData.cases[0]} onBack={() => setScreen((selectedCase && selectedCase.status === 'closed') ? "solved" : "cases")} isMobile={isMobile} />}
           {screen === "heatmap"   && <HeatmapScreen />}
-          {screen === "solved"    && <SolvedCasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} isMobile={isMobile} />}
+          {screen === "solved"    && <SolvedCasesScreen cases={apiData.cases} onSelectCase={handleSelectCase} onDelete={handleCasesDeleted} isMobile={isMobile} />}
         </div>
       </div>
     </div>

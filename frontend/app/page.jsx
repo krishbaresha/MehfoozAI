@@ -172,7 +172,7 @@ export default function LandingPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Organization",
-            "name": "MehfoozAI",
+            "name": "MahfoozAI",
             "url": "https://mahfoozai.netlify.app/",
             "logo": "https://mahfoozai.netlify.app/favicon.ico",
             "description": "Pakistan's first anonymous, AI-powered harassment reporting platform. Report safely. Stay protected.",

@@ -636,6 +636,93 @@ async def get_solved_cases():
     except Exception as e:
         return {"data": [], "error": str(e)}
 
+class BulkDeleteRequest(BaseModel):
+    case_ids: list[str]
+
+@app.delete("/api/v1/cases/{case_id}")
+async def delete_case(case_id: str):
+    """
+    Permanently delete a single case (must be status='closed') from both
+    Supabase and the local SQLite fallback database.
+    """
+    from src.db.supabase_client import supabase
+    import sqlite3
+    DB_PATH = "mehfooz.db"
+
+    try:
+        # 1. Delete from Supabase (Production)
+        if supabase:
+            try:
+                res = supabase.table("incidents").delete().eq("case_id", case_id).execute()
+                logger.info(f"🗑️ Supabase: deleted case {case_id}")
+            except Exception as sb_err:
+                logger.error(f"❌ Supabase Delete Error for {case_id}: {sb_err}")
+
+        # 2. Delete from SQLite (Local/Fallback)
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("DELETE FROM incidents WHERE case_id = ?", (case_id,))
+        deleted_rows = c.rowcount
+        conn.commit()
+        conn.close()
+
+        if deleted_rows == 0 and not supabase:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+
+        logger.info(f"🗑️ SQLite: deleted {deleted_rows} row(s) for case {case_id}")
+        return {"status": "success", "case_id": case_id, "message": "Case permanently deleted"}
+
+    except Exception as e:
+        logger.error(f"❌ Delete Error for {case_id}: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/cases/bulk-delete")
+async def bulk_delete_cases(req: BulkDeleteRequest):
+    """
+    Permanently delete multiple resolved cases at once from Supabase and SQLite.
+    """
+    from src.db.supabase_client import supabase
+    import sqlite3
+    DB_PATH = "mehfooz.db"
+
+    logger.info(f"🗑️ Bulk Delete Request for: {req.case_ids}")
+    deleted = []
+    failed = []
+
+    for case_id in req.case_ids:
+        try:
+            # 1. Delete from Supabase
+            if supabase:
+                try:
+                    supabase.table("incidents").delete().eq("case_id", case_id).execute()
+                    logger.info(f"✅ Supabase deleted case {case_id}")
+                except Exception as sb_err:
+                    logger.error(f"❌ Supabase Bulk Delete Error for {case_id}: {sb_err}")
+
+            # 2. Delete from SQLite
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("DELETE FROM incidents WHERE case_id = ?", (case_id,))
+            conn.commit()
+            conn.close()
+
+            deleted.append(case_id)
+        except Exception as e:
+            logger.error(f"❌ Bulk Delete failed for {case_id}: {e}")
+            failed.append(case_id)
+
+    return {
+        "status": "success",
+        "deleted_count": len(deleted),
+        "failed_count": len(failed),
+        "deleted": deleted,
+        "failed": failed
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("src.main:app", host="0.0.0.0", port=settings.PORT, reload=True)
