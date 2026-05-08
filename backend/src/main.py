@@ -151,10 +151,21 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
     try:
         # Initialize session if not exists
         if sender not in SESSIONS:
-            SESSIONS[sender] = {"full_text": "", "last_interaction": datetime.now()}
+            SESSIONS[sender] = {
+                "full_text": "", 
+                "last_interaction": datetime.now(),
+                "lat": None,
+                "lon": None
+            }
         
+        # If new location data comes in, store it in session
+        if location_data:
+            SESSIONS[sender]["lat"] = location_data.get("lat")
+            SESSIONS[sender]["lon"] = location_data.get("lon")
+            logger.info(f"📍 Location stored in session for {sender}: {location_data}")
+
         # Add incoming to history
-        current_input = user_text or (f"[Location: {location_data}]" if location_data else "[Media/Voice Report]")
+        current_input = user_text or ("[Location Data Received]" if location_data else "[Media/Voice Report]")
         SESSIONS[sender]["full_text"] += f"\nUser: {current_input}"
         SESSIONS[sender]["last_interaction"] = datetime.now()
 
@@ -175,13 +186,22 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
 
         # 3. If COMPLETE, finalize and save
         case_id = generate_case_id()
+        
+        # Use session-stored coordinates if available
+        lat = location_data.get("lat") if location_data else SESSIONS[sender].get("lat")
+        lon = location_data.get("lon") if location_data else SESSIONS[sender].get("lon")
+        
         enriched_details = {
             **intake_data,
             "sender_phone": sender,
             "evidence_urls": media_urls or [],
-            "latitude": location_data.get("lat") if location_data else None,
-            "longitude": location_data.get("lon") if location_data else None,
+            "latitude": lat,
+            "longitude": lon,
         }
+        
+        # Fallback: If AI didn't find a location name but we have GPS, use GPS as location name
+        if not enriched_details.get("location") and lat and lon:
+            enriched_details["location"] = f"GPS: {lat:.4f}, {lon:.4f}"
 
         await save_incident(
             case_id=case_id,

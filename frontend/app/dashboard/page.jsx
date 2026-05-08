@@ -858,7 +858,30 @@ const CasesScreen = ({ cases, onSelectCase, onResolve, isMobile }) => {
                   </div>
                   
                   {/* Location */}
-                  <div style={{ fontSize: 11, color: C.text2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.location}</div>
+                  <div style={{ fontSize: 11, color: C.text2, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.location}</span>
+                    {c.lat && c.lng && (
+                      <a href={`https://www.google.com/maps?q=${c.lat},${c.lng}`} 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         onClick={e => e.stopPropagation()}
+                         title="Open exact location in Google Maps"
+                         style={{ 
+                           background: "rgba(45,212,191,0.15)", 
+                           color: C.teal, 
+                           padding: "2px 6px", 
+                           borderRadius: 4, 
+                           fontSize: 9, 
+                           fontWeight: 700,
+                           textDecoration: "none",
+                           display: "flex",
+                           alignItems: "center",
+                           gap: 3
+                         }}>
+                        📍 PIN
+                      </a>
+                    )}
+                  </div>
                   
                   {/* Quick Intel */}
                   <div className="col-hide-mobile" style={{ fontSize: 10.5, color: C.green, lineHeight: 1.4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 15 }}>
@@ -1411,7 +1434,9 @@ const App = () => {
               id: c.case_id || `MHZ-ID-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
               status: c.status || 'pending',
               type: c.category || 'Harassment',
-              location: c.location_name || 'Unknown',
+              location: c.location_name || (c.latitude ? `GPS: ${Number(c.latitude).toFixed(4)}, ${Number(c.longitude).toFixed(4)}` : 'Unknown Location'),
+              lat: c.latitude,
+              lng: c.longitude,
               time: c.created_at ? new Date(c.created_at).toLocaleString() : 'N/A',
               ppc: Array.isArray(c.ppc_sections) ? c.ppc_sections : [],
               authority: c.routing_info?.primary_authority || 'Unknown Station',
