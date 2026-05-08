@@ -30,5 +30,5 @@ ENV PORT=7860
 EXPOSE 7860
 
 # Run the application
-# We use 0.0.0.0 to bind to all interfaces
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Use the PORT environment variable provided by Render/Railway
+CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-7860}

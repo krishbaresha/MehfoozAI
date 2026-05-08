@@ -28,3 +28,13 @@ services:
         sync: false
       - key: ENCRYPTION_KEY
         sync: false
+
+  - type: static
+    name: mehfooz-frontend
+    env: node
+    rootDirectory: frontend
+    buildCommand: npm install && STATIC_EXPORT=true npm run build
+    publishPath: out
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://mehfooz-backend.onrender.com # Change this to your actual backend URL after first deploy
