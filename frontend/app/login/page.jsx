@@ -57,7 +57,12 @@ export default function AuthorityPortal() {
         height: "100%",
         duration: 0.8,
         ease: "power1.inOut",
-        onComplete: () => router.push("/dashboard"),
+        onComplete: () => {
+          // ✅ Store auth token — sessionStorage for client guard + cookie for middleware
+          sessionStorage.setItem("mhz_auth", "MHZ-AUTH-8829");
+          document.cookie = "mhz_auth=MHZ-AUTH-8829; path=/; SameSite=Strict";
+          router.push("/dashboard");
+        },
       });
     } else {
       setIsScanning(false);

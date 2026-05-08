@@ -1,7 +1,7 @@
 
 "use client";
 import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
@@ -1335,6 +1335,18 @@ const HeatmapScreen = () => <LiveSafetyMap />;
 /* ─── ROOT APP ───────────────────────────────────────────────────────────── */
 const App = () => {
   const [isMobile, setIsMobile] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const router = useRouter();
+
+  // ─── Auth Guard ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const token = sessionStorage.getItem("mhz_auth");
+    if (!token || token !== "MHZ-AUTH-8829") {
+      router.replace("/login");
+    } else {
+      setAuthChecked(true);
+    }
+  }, [router]);
 
   useEffect(() => {
     const checkSize = () => setIsMobile(window.innerWidth < 1024);
@@ -1463,6 +1475,19 @@ const App = () => {
     solved:    { title:"Solved Cases",       sub:"Cases that have been resolved and closed" },
   };
   const meta = META[screen];
+
+  // Block render until auth check is complete (prevents flash)
+  if (!authChecked) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
+        height: "100vh", width: "100vw", background: "#0b0f1a" }}>
+        <div style={{ width: 36, height: 36, border: "3px solid #e8637a",
+          borderTopColor: "transparent", borderRadius: "50%",
+          animation: "spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="intelligence-grid" style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden", position:"relative" }}>
