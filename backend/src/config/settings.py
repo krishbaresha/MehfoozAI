@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # Groq
-    GROQ_API_KEY: SecretStr
+    GROQ_API_KEY: SecretStr = SecretStr("placeholder")
 
     # Supabase
     SUPABASE_URL: str = "https://placeholder.supabase.co"

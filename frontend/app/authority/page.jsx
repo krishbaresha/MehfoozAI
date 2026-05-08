@@ -60,8 +60,9 @@ export default function AuthorityPortal() {
 
   const fetchCases = async () => {
     setLoading(true);
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     try {
-      const response = await axios.get('http://localhost:8000/api/v1/authority/cases', {
+      const response = await axios.get(`${baseUrl}/api/v1/authority/cases`, {
         headers: { 'Authorization': AUTH_TOKEN }
       });
       const fetchedCases = response.data.data || [];
