@@ -15,11 +15,11 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # Groq
-    GROQ_API_KEY: SecretStr = SecretStr("placeholder")
+    GROQ_API_KEY: Optional[SecretStr] = None
 
     # Supabase
-    SUPABASE_URL: str = "https://placeholder.supabase.co"
-    SUPABASE_SERVICE_ROLE_KEY: SecretStr = SecretStr("placeholder")
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[SecretStr] = None
 
     # Meta WhatsApp API
     META_ACCESS_TOKEN: Optional[SecretStr] = None
@@ -37,12 +37,25 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "dev-secret-change-me"
     ENCRYPTION_KEY: str = "0" * 64
+    
+    # Authority Portal Auth
+    AUTHORITY_ACCESS_TOKEN: str = "mehfooz-admin-2024"
+    AUTHORITY_MASTER_PASSWORD: str = "mehfooz-admin-2024"
 
     # Monitoring
     SENTRY_DSN: Optional[str] = None
 
 try:
     settings = Settings()
+    
+    # Validation / Sanitization
+    if settings.GROQ_API_KEY and settings.GROQ_API_KEY.get_secret_value() == "placeholder":
+        settings.GROQ_API_KEY = None
+    if settings.SUPABASE_URL and "placeholder" in settings.SUPABASE_URL:
+        settings.SUPABASE_URL = None
+    if settings.SUPABASE_SERVICE_ROLE_KEY and settings.SUPABASE_SERVICE_ROLE_KEY.get_secret_value() == "placeholder":
+        settings.SUPABASE_SERVICE_ROLE_KEY = None
+        
     print(f"OK Config loaded — Environment: {settings.NODE_ENV}")
 except Exception as e:
     print(f"Error Invalid environment variables: {e}")

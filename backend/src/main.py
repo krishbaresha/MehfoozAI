@@ -72,8 +72,9 @@ async def ready():
         raise HTTPException(status_code=503, detail=f"Database not ready: {e}")
 
 # ─── WhatsApp Webhook ────────────────────────────────────────────────
-# ─── Simple Session Memory (For Demo) ───────────────────────────────
-SESSIONS = {}  # { sender_phone: { last_case_id: str, last_activity: datetime } }
+# ─── Simple Session & De-duplication ───────────────────────────────
+SESSIONS = {}  # { sender_phone: { full_text: str, lat: float, lon: float, last_interaction: datetime, current_case_id: str } }
+PROCESSED_MESSAGE_IDS = set() # { wamid } - Simple in-memory de-duplication
 
 # ─── Auth ───────────────────────────────────────────────────────────
 from pydantic import BaseModel
@@ -155,7 +156,8 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
                 "full_text": "", 
                 "last_interaction": datetime.now(),
                 "lat": None,
-                "lon": None
+                "lon": None,
+                "current_case_id": None
             }
         
         # If new location data comes in, store it in session
@@ -185,7 +187,11 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             return {"status": "collecting_info"}
 
         # 3. If COMPLETE, finalize and save
-        case_id = generate_case_id()
+        # Check if we already have a case ID for this session, otherwise generate new
+        case_id = SESSIONS[sender].get("current_case_id")
+        if not case_id:
+            case_id = generate_case_id()
+            SESSIONS[sender]["current_case_id"] = case_id
         
         # Use session-stored coordinates if available
         lat = location_data.get("lat") if location_data else SESSIONS[sender].get("lat")
@@ -223,7 +229,6 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
         
         # 5. Build Smart Response
         try:
-            next_step = intake_data.get("next_step", "COMPLETE")
             suggested_reply = intake_data.get("suggested_response", "")
             
             if next_step == "COLLECT_INFO" and suggested_reply:
@@ -259,11 +264,13 @@ async def process_report(sender: str, user_text: str, media_urls: list = None, l
             logger.error(f"⚠️ Response building failed: {msg_err}")
             response_text = f"✅ *Report Registered!*\n\n🆔 *Case ID:* {case_id}\n\nAapki report save ho gayi hai. Authorities jald hi rabta karein gi."
 
-        # 6. Save AI Response to History and clear session
+        # 6. Save AI Response to History
         if sender in SESSIONS:
             SESSIONS[sender]["full_text"] += f"\nAI: {response_text}"
-            # Optional: Clear history after completion to start fresh next time
-            # del SESSIONS[sender] 
+            # After COMPLETE, we keep the session for a while but reset the context for next report?
+            # Actually, let's keep it until it's cleared by inactivity or explicit action.
+            # But we might want to clear the 'current_case_id' so the next message starts a new one if it's a new incident.
+            # For now, let's leave it so they can add more details to the same case.
 
         await send_whatsapp_reply(sender, response_text)
         logger.info(f"✅ Pipeline complete — Case ID: {case_id}")
@@ -308,17 +315,17 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     try:
         raw_body = await request.body()
-        logger.info(f"📥 Incoming Webhook Raw Body: {raw_body.decode('utf-8')}")
+        # logger.info(f"📥 Incoming Webhook Raw Body: {raw_body.decode('utf-8')}")
         body = await request.json()
         if body.get("object") == "whatsapp_business_account":
             # Process in background to prevent timeout
-            background_tasks.add_task(handle_meta_webhook_payload, body, background_tasks)
+            background_tasks.add_task(handle_meta_webhook_payload, body)
         return Response(content="OK", status_code=200)
     except Exception as e:
         logger.error(f"💥 Webhook Root Error: {str(e)}")
         return Response(content="OK", status_code=200) # Always ACK to Meta
 
-async def handle_meta_webhook_payload(body: dict, background_tasks: BackgroundTasks):
+async def handle_meta_webhook_payload(body: dict):
     """Full background processor for Meta payloads."""
     try:
         for entry in body.get("entry", []):
@@ -327,7 +334,19 @@ async def handle_meta_webhook_payload(body: dict, background_tasks: BackgroundTa
                 if "messages" in value:
                     for msg in value["messages"]:
                         sender = msg.get("from")
+                        msg_id = msg.get("id")
                         msg_type = msg.get("type")
+                        
+                        # 0. De-duplication check
+                        if msg_id in PROCESSED_MESSAGE_IDS:
+                            logger.info(f"♻️ Skipping duplicate message: {msg_id}")
+                            continue
+                        
+                        PROCESSED_MESSAGE_IDS.add(msg_id)
+                        # Keep cache small (demo purposes)
+                        if len(PROCESSED_MESSAGE_IDS) > 500:
+                            PROCESSED_MESSAGE_IDS.pop()
+
                         incoming_msg = ""
                         media_url = None
                         location_data = None
@@ -342,7 +361,7 @@ async def handle_meta_webhook_payload(body: dict, background_tasks: BackgroundTa
                                 "lon": msg.get("location", {}).get("longitude")
                             }
 
-                        logger.info(f"📩 Background Processing: {sender} -> {msg_type}")
+                        logger.info(f"📩 Background Processing: {sender} -> {msg_type} (ID: {msg_id})")
 
                         # 1. Status Check
                         if incoming_msg and incoming_msg.upper().startswith("STATUS"):
@@ -645,13 +664,13 @@ async def get_solved_cases():
         
         import json
         for row in rows:
-            for col in ["ppc_sections", "routing_info", "safety_zone", "evidence_urls"]:
+            for col in ["ppc_sections", "routing_info", "safety_zone", "evidence_urls", "perpetrator_data"]:
                 val = row.get(col)
                 if isinstance(val, str):
                     try:
                         row[col] = json.loads(val)
                     except Exception:
-                        row[col] = []
+                        row[col] = [] if col != "perpetrator_data" else {}
         return {"data": rows}
     except Exception as e:
         return {"data": [], "error": str(e)}

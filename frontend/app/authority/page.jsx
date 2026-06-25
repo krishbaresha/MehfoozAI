@@ -21,7 +21,8 @@ import {
   Eye,
   Camera,
   Cpu,
-  Radar
+  Radar,
+  CheckCircle2
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -39,6 +40,8 @@ export default function AuthorityPortal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [filter, setFilter] = useState('active'); // 'active' or 'resolved'
+  const [isResolving, setIsResolving] = useState(false);
 
   const AUTH_TOKEN = 'Bearer mehfooz-admin-2024';
   const MASTER_PASSWORD = 'mehfooz-admin-2024';
@@ -58,23 +61,58 @@ export default function AuthorityPortal() {
     }, 1500);
   };
 
-  const fetchCases = async () => {
+  const fetchCases = async (currentFilter = filter) => {
     setLoading(true);
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     try {
-      const response = await axios.get(`${baseUrl}/api/v1/authority/cases`, {
+      const endpoint = currentFilter === 'active' ? '/api/v1/authority/cases' : '/api/v1/cases/solved';
+      const response = await axios.get(`${baseUrl}${endpoint}`, {
         headers: { 'Authorization': AUTH_TOKEN }
       });
       const fetchedCases = response.data.data || [];
-      setCases(fetchedCases);
-      if (fetchedCases.length > 0) {
-        setSelectedCase(fetchedCases[0]);
+      
+      // If active, we might want to filter out 'closed' cases if the backend doesn't
+      const filtered = currentFilter === 'active' 
+        ? fetchedCases.filter(c => c.status !== 'closed')
+        : fetchedCases;
+
+      setCases(filtered);
+      if (filtered.length > 0) {
+        setSelectedCase(filtered[0]);
+      } else {
+        setSelectedCase(null);
       }
     } catch (err) {
       console.error('Fetch error:', err);
       setError('CORE_SYNC_FAILURE');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!selectedCase || isResolving) return;
+    
+    if (!confirm(`Are you sure you want to mark Case #${selectedCase.case_id} as RESOLVED?`)) return;
+
+    setIsResolving(true);
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    try {
+      await axios.post(`${baseUrl}/api/v1/cases/${selectedCase.case_id}/resolve`, {
+        send_message: true,
+        custom_message: ""
+      }, {
+        headers: { 'Authorization': AUTH_TOKEN }
+      });
+      
+      // Refresh list
+      await fetchCases();
+      alert("Case resolved and reporter notified.");
+    } catch (err) {
+      console.error('Resolve error:', err);
+      alert("Failed to resolve case. Check console.");
+    } finally {
+      setIsResolving(false);
     }
   };
 
@@ -228,6 +266,20 @@ export default function AuthorityPortal() {
         {/* Left: Intelligence Feed */}
         <aside className="w-[340px] border-r border-[#00F0FF]/10 flex flex-col shrink-0 bg-[#0d1515]/50 backdrop-blur-xl z-40">
           <div className="p-5 border-b border-[#00F0FF]/10 bg-[#192122]/30">
+            <div className="flex gap-2 mb-4">
+              <button 
+                onClick={() => { setFilter('active'); fetchCases('active'); }}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded border transition-all ${filter === 'active' ? 'bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]' : 'border-white/10 text-white/40'}`}
+              >
+                Active
+              </button>
+              <button 
+                onClick={() => { setFilter('resolved'); fetchCases('resolved'); }}
+                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded border transition-all ${filter === 'resolved' ? 'bg-[#00F0FF]/10 border-[#00F0FF] text-[#00F0FF]' : 'border-white/10 text-white/40'}`}
+              >
+                Resolved
+              </button>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={14} />
               <input 
@@ -486,9 +538,16 @@ export default function AuthorityPortal() {
                     <Scale size={16} className="group-hover:scale-110 transition-transform" />
                     GENERATE_FIR_DOC
                   </button>
-                  <button className="flex-1 flex items-center justify-center gap-3 py-4 bg-[#FF3131] text-white rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-[#FF3131]/90 transition-all shadow-[0_0_20px_rgba(255,49,49,0.2)] group">
-                    <Shield size={16} className="group-hover:rotate-12 transition-transform" />
-                    DISPATCH_FORCE
+                  <button 
+                    onClick={handleResolve}
+                    disabled={isResolving || selectedCase.status === 'closed'}
+                    className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(255,49,49,0.2)] group ${selectedCase.status === 'closed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 cursor-not-allowed' : 'bg-[#FF3131] text-white hover:bg-[#FF3131]/90'}`}
+                  >
+                    {selectedCase.status === 'closed' ? (
+                      <><CheckCircle2 size={16} /> CASE_RESOLVED</>
+                    ) : (
+                      <><Shield size={16} className="group-hover:rotate-12 transition-transform" /> {isResolving ? 'RESOLVING...' : 'MARK_AS_RESOLVED'}</>
+                    )}
                   </button>
                 </div>
                 <button className="w-full py-3 bg-white/5 border border-white/10 text-white/40 rounded-lg text-[9px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 hover:text-white/60 transition-all">
